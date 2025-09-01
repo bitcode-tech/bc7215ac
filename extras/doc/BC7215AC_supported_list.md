@@ -1,0 +1,1045 @@
+# BC7215AC 离线空调遥控库支持品牌清单
+
+# BC7215AC Offline A/C IR Remote Control Library Supported Brand List
+
+(更新日期: 2025年7月  Last Update: July 2025)
+
+## 前言/Introduction:
+
+问：空调遥控库都支持哪些品牌型号？
+
+FAQ : Which brands and models does the library support?
+
+答：因为工作的原理不同，BC7215A 离线空调遥控库是基于空调协议编码规则的规则库，而非基于对红外信号进行采集录入的数据库，因此尽管体积很小，但支持的空调型号却很多，很难准确列出全部支持的品牌型号。基于规则的码库的一大优点是，即便对于未来的新型号，也有很大的概率已经可以支持，因为新型号空调有很大概率会沿用现有产品的控制协议。
+
+Answer: Due to its unique operating principle, the BC7215AC offline remote control library is a rule-based library grounded in air conditioner protocol encoding rules, rather than a database built from sampling IR signals. As a result, despite its compact size, it supports a vast number of air conditioner models, making it challenging to provide a comprehensive list of all supported brands and models. A key advantage of this rule-based library is its high likelihood of supporting future models, as new air conditioner models are very likely to adopt existing control protocols.
+
+尽管如前所述原因很难给出精确的支持列表，这里为了给大家一个直观的认识，我们测试了尽可能多的空调品牌和型号，下面按英文字母顺序列出已知可支持的品牌，供大家参考。排序按英文名称字母顺序，比如三菱(Mitsubishi)归于字母M 下，志高(Chigo)归类于字母C：
+
+Although it is difficult to provide an exact support list for the reasons mentioned above, to give users a clear understanding, we have tested as many air conditioner brands and models as possible. Below is a list of known supported brands, organized alphabetically by their English names for reference.
+
+## A
+
+- AUX 奥克斯
+- AUCMA 澳柯玛
+- APTON 艾普顿
+- AIRWELL 欧威尔
+- ACCORONI
+- ACLS 喜事来
+- ACMA
+- ACSION
+- ACSON
+- ACTRON AIR
+- ACURA
+- ADC
+- AEG
+- AERMEC
+- AGER
+- AGRATTO
+- AIDELONG 爱德龙
+- AIDE
+- AIRCON
+- AIRTEK
+- AIRTON
+- AIRWAVE
+- AKAI
+- AKARI
+- AKIRA 爱家乐
+- ALASKA
+- ALPIN
+- ALPINA
+- ALTECH
+- ALTUS 奥特斯
+- AMANA
+- AMCOR
+- AMENA
+- AMERICOOL
+- AMICO
+- AMOI 夏新
+- AMSTRAD
+- AMVENT
+- ANSONIC
+- ANWO
+- AOKE 澳科
+- AOLI
+- AORA
+- ARCA
+- ARCELIK
+- ARCO-AIR
+- ARCTIC
+- ARD
+- ARENA
+- ARGO
+- ARIAGEL
+- ARISTON
+- ARLEC
+- ARMONY
+- ARSTIL
+- AITE 爱特
+- ARTEL
+- ARYA
+- ASHITA
+- ASJA
+- ASR
+- ASTRO
+- ATLANTIC
+- ATTIMO
+- AUFIT
+- AUKIA
+- AURA
+- AURORA
+- AUSSIE AIR
+- AWB 爱微宝
+- AZUKI
+- AZURE
+- AZRURI
+- 奥奈达
+
+## B
+
+- BOERKA 波尔卡
+- BOSCH 博世
+- BEAVER
+- BESTECH
+- B&Q
+- BALLU
+- BALTUR
+- BANTIAN 坂田
+- BANSHEN 阪神
+- BARTOLINI
+- BAXI
+- BAYMAK
+- BAIXUE 白雪
+- BECKEN
+- BEKO 倍科
+- BENDDAO 本岛
+- BELAIR IRRADIO
+- BENQ
+- BENT
+- BENWIN 宾维
+- BERETTA
+- BGH
+- BIG THUMB
+- BINGXIONG 冰熊
+- BION
+- BLOMBERG
+- BLOWMASTER
+- BLUERIDGE
+- BLUE STAR
+- BLUEWAY
+- BOLE 波乐博菱
+- BONNTO
+- BORLER
+- BOSHI
+- BOSHIGAO 波士高
+- BOYIN 波茵
+- BREEZE
+- BRIVAS
+- BROTHS 兄弟
+- BRYANT
+
+## C
+
+- CARRIER 开利
+- CHIGO 志高
+- CHANGHONG 长虹
+- CORONA 内田
+- CARRERA
+- CASARTE 卡萨帝
+- CELESTIAL
+- CELIERA
+- CENTEK
+- CENTRAL AIR
+- CENTURY 世纪
+- CETOMER
+- CHAFFOTEAUX & MAURY
+- CHANGCHENG 长城
+- CHANGFEI 长飞
+- CHANGFENG 长风
+- CHANGFU
+- CHANGGU 长谷
+- CHANGLING 长岭
+- CHEBLO 樱花电器
+- CHENGYUAN
+- CHIANG 启客
+- CHIMEI
+- CHOFU
+- CHUANHUA 创华
+- CHUNLAN 春兰
+- CIAC
+- CITIZEN
+- CKC
+- CLASSIC
+- CLIMAVENETA
+- CLIMAX
+- CLIVET
+- CMV
+- COAIRE
+- COCOMBINE 康拜恩
+- COCOMBINE
+- COMFEE
+- COMFORT-AIRE
+- COMFORTSTAR
+- COMFREE 酷风
+- CONCORD
+- CONFORT MASTER
+- CONIA
+- CONROWA 高路华
+- CONSUL
+- CONTINENTAL EDISON
+- CONTINENT 康田
+- CONTINENTAL
+- COOCAA 酷开
+- COOLAIR
+- COOLINE
+- COOLIX
+- COOL PARTS GC
+- COOLWEX
+- COOPER & HUNTER
+- COROLLA
+- COSMOGAS
+- COUNTRY AIR
+- CROWN
+- CRYSTAL
+
+## D
+
+- DAIKIN 大金
+- DAEWOO 大宇
+- DELONGHI
+- DOCTOR
+- DAHE
+- DAITSU
+- DAJINXING 大金星
+- DANBY
+- DANTEX
+- DAUX
+- DAIKE 戴克
+- DAOTIAN
+- DAREL
+- DAUREL
+- DAYA
+- DAYSOL
+- DAYLUX
+- DEC
+- DEER
+- DELCHI
+- DEMULLER 德姆勒
+- DEMIRDOKUM
+- DENBIG 登比
+- DENGPAI 登牌
+- DERBY
+- DEROXI 德澳西
+- DETAIL 迪泰尔
+- DIAMOND 钻石
+- DIAMANT
+- DICORE
+- DILOC
+- DIPAER 迪帕尔
+- DIMSTAL
+- DIVINCHI
+- DIZHI 帝智
+- DL
+- DONGAO 东澳
+- DONGBAO 东宝
+- DONGXINBAO 东新宝
+- DOLPHIN
+- DONGXIA 冬夏
+- DUCASA
+- DUCTLESSAIRE
+- DUEE 多力
+- DUNAN
+- DUPAI 杜派
+- DUPONT 杜邦
+- DUOWEI 多威
+- DUOZUANHUA 多钻花
+- DUNAN 盾安
+- DURAMAXX
+- DUXX
+- DYNAMIC
+- 东方樱花
+
+## E
+
+- EUROKLIMAT 欧科
+- ELECTRA 以莱特
+- EUROPACE
+- ELECTROLUX 伊莱克斯
+- E-COLD
+- EBC 英纯宝
+- ECA-TECHNOLOGY ECOAIR
+- ECOFIX
+- ECOCLIM
+- ECOFLAM
+- ECOX
+- EG4
+- EINHELL
+- EKOKAI
+- ELBA
+- ELBONI 恩博力
+- ELCO 宜科
+- ELDLONG
+- ELECISM
+- ELECTER
+- ELECTRIQ
+- ELECTROLINE
+- ELGIN
+- ELIT
+- ELSONIC
+- ELTA
+- EMAILAIR
+- EMERALD ENGERGY
+- EMMETI
+- ENVIRACAIRE
+- EPIN 苏宁宜品
+- EQUATION
+- ESKINO-FOREST
+
+## F
+
+- FUJITSU 富士通
+- FUJITSU GENERAL 富士通将军
+- FEDDERS 飞达仕
+- FEIEDRICH
+- FUNAI 船井
+- FAGOR
+- FAIR
+- FALANBAO 法兰宝
+- FANAIR
+- FANTINI COSMI
+- FANWORLD
+- FAR
+- FAVORIT
+- FEEL LINE
+- FEELMAX
+- FEIGE
+- FEILU 飞鹿
+- FERROLI
+- FIRST
+- FIRSTLINE
+- FLAVEL
+- FORTRESS
+- FORTRESS 丰泽
+- FRESTEC 新飞
+- FRIEDRICH
+- FRIGIDAIRE
+- FRIGOLINE
+- FROST
+- FUJIAIR
+- FUJIAIRE
+- FUJICO
+- FUJI ELECTRIC
+- FUJIMARU
+- FUJITA
+- FUJITEAC
+- FUJITECH
+- FUJITHERMA
+- FUNIKI
+- FZM 方米
+- FAIARTE 法拉帝
+- FURI 福日
+
+## G
+
+- GREE 格力
+- GALANZ 格兰仕
+- GIBSON 吉普生
+- GE
+- GENERAL
+- DAICHI
+- GALLETTI
+- GCHV 积微
+- GEBAOZ 格宝仕
+- GEER 格尔
+- GELING 歌菱
+- GENUIN 正野
+- GERMAN POOL
+- GEWEIER 格威尔
+- GEYANG 格阳
+- GFORCE
+- GIATSU
+- GIWEE 积微
+- GMCC
+- GODREJ
+- GOLDSTAR 高士达
+- GOME 国美
+- GOODMAN
+- GOODWEATHER
+- GORENJE
+- GREEN
+- GREENE
+- GSG
+- GUANGDA
+- GUANGDA 光大
+- GUANYUAN 冠远
+- GUOJI 国际
+- GUQIAO 古桥
+
+## H
+
+- HAIER 海尔
+- HISENSE 海信
+- HITACHI 日立
+- HYUNDAI 现代
+- HACEB
+- HAIHIN 海芝
+- HAILIN 海林
+- HAMILTON DIGITAL
+- HAMM ELECTRIC
+- HANGHONG 杭虹
+- HANGTIANDIAMQI 航天电器
+- HAOER 好尔
+- HAWRIN
+- HEC
+- HELLER HOFFWEL
+- HELTON
+- HEMILTON
+- HENGMI 衡米
+- HERAN
+- HERB RELAX 郝柏松
+- HERMANN
+- HESSTAR
+- HICLONA 惠康
+- HICON 惠康
+- HILAIRE 雪莱尔
+- HIYASU
+- HNEYREA 虹立
+- HNY 恒有源
+- HOEFELD 霍菲尔德
+- HOFFWELL
+- HOKKAIDO
+- HOMEMAKERS
+- HONEYWELL
+- HORSHRON 虹声
+- HOTPOINT
+- HOWELL
+- HTIAN 航天
+- HTW
+- HUABAO 华宝
+- HUAGAO 华高
+- HUAIYI 华意
+- HUAKANG
+- HUAKE 华科
+- HUALING
+- HUANGHE
+- HUAMEI 华美
+- HUAWEI
+- HUAZHIZHIFENG 华机之风
+- HUIKANG
+- HUEE 弘力
+- HUIFENG 汇丰
+- HUKE 惠科
+- HUTSSOM 华蒜
+
+## I
+
+- IATU
+- iCongo 志高
+- ICEBERG
+- IDEAL STANDARD
+- IDEMA
+- IG 韩中
+- IGENIX
+- IGNIS
+- IMARFLEX
+- INNO-HIT
+- INNOVAIR
+- INYAN 迎燕
+- INADA 稻田
+- INDESIT
+- INEASY 影逸
+- INSIGNIA 影雅
+- INVENTOR
+- IPAMRAUNIC
+- IRSAP
+- ISOCLIMA
+- ISUZU
+- ITAN 盈田
+- IVT
+
+## J
+
+- JDC 北京京电
+- JBS
+- JENSANY 金三洋
+- JET-AIR
+- JH 京花
+- JHS 金鸿盛
+- JIALE 佳乐
+- JIANGCHENG 江成
+- JIANGNAN
+- JICHUAN 吉川
+- JIKEPRIN 吉克普林
+- JINBEIJING 金北京
+- JINDA 金达
+- JINDAL
+- JINLI 金立
+- JINLU 金鹿
+- JINSONG 金松
+- JINTNC
+- JINXING 金兴
+- JINZHI 金挚
+- JINXING 金星
+- JIWU 苏宁极物
+- JMSTART
+- JOANNES
+- JOHSON
+- JOYCARE
+- JUCKER CLIMA
+- JUHUA
+- JUSTICE 杰士达
+- JYANGZI 金扬子
+
+## K
+
+- KELON 科龙
+- KONKA 康佳
+- KOLIN 歌林
+- KELVINATOR
+- KALVERT
+- KANGLI 康利
+- KASTRON
+- KAYSUN
+- KDGD
+- KEER 科尔
+- KEMAI 科迈
+- KENDO
+- KENTATSU
+- KENWOOD 健伍
+- KEYSTONE
+- KEG 韩电
+- KEMING 科明
+- KGOOD 科旭德
+- KHONE
+- KINGAIR 国祥
+- KIWGHOVNG 晶弘弘力
+- KLARSTEIN
+- KLIMAIRE
+- KLIMATAIR
+- KMINI K 咪
+- KOMECO
+- KONKA
+- KOOLKING
+- KOPPEL
+- KRIS
+
+## L
+
+- LG
+- LEADER 统帅
+- LENNOX
+- LITTLESWAN 小天鹅
+- LAMBORGHINI
+- LAMINOX
+- LANGGE 朗歌
+- LAN MI 蓝米
+- LAR.EL
+- LEBERG
+- LEJN 乐京
+- LENOIR
+- LEISURE
+- LEVANTE
+- LETV 乐视
+- LIANGYU 凉宇
+- LIKAIER 利凯尔
+- LIKEAIR
+- LILITEC
+- LINK COOL 麟酷
+- LINUO PARADIGMA 力诺瑞特
+- LILY 百合
+- LITTLEDUCK 小鸭
+- LLOYD
+- LONGYUN 龙运
+- LOPOL 乐浦
+- LOREN-SEBO
+- LUXAIRE 乐笙
+
+## M
+
+- MITSUBISHI ELECTRIC 三菱电机
+- MITSUBISHI HEAVY 三菱重工
+- MAXE 万事益
+- MIDEA 美的
+- McQUAY 麦克维尔
+- MILLER
+- MABE
+- MACRO 万家乐
+- MAKATOMY
+- MALATA 万利达
+- MARIANI CLIMA
+- MASTER CLIMA
+- MAXA
+- MAXELL
+- MAXICOOL
+- MAXXCOOL
+- MAZUBA 松桥
+- MBO 美博
+- MECO
+- MEIDIAN 美典
+- MEICO 美歌
+- MEILING 美菱
+- MEILIHONGZUAN 深圳三菱
+- MEIPONT 美邦
+- MEITAV
+- MEPAMSA
+- MI 小米
+- MICEVOD
+- MICOM
+- MIDEA-TOSHIBA
+- MIJIA 米家
+- MILLINK 米林客
+- MINGXING 明星
+- MINGYI 名亿
+- MISAKAE
+- MIRAGE
+- MISTRAL 名仕风
+- MITSEIN 弥特斯
+- MITSUBISHI-HAIER 三菱重工-海尔
+- MITSUI
+- MITSUKA
+- MITSUSHITO
+- MIZUSHI
+- MLJD 麦勒
+- MONDIALCASA
+- MONTANA
+- MORGAN
+- MTUBRTIUSH
+- MrCOOL
+- MUSEEN 慕森
+- MULTIBRUSH 北海道三菱
+- MULTIAQUA
+- MULTISEVEN
+- MULTIWARM
+- MUNDOCLIMA 美芝
+- 米沃
+
+## N
+
+- NATIONAL 乐声
+- NEC
+- NAKATOMY
+- NANJIREN 南极人
+- NANKAJ
+- NEOCLIMA
+- NEVADA CLIMA
+- NEWCLIME
+- NEO
+- NEOKA
+- NIKKEI
+- NIKKO
+- NIKKU
+- NIMACO
+- NINTAUS 金正
+- NIPPON
+- NISO
+- NORITZ
+- NORTLINE
+
+## O
+
+- OLIMPIA SPLENDID 欧菱宝
+- ONIDA
+- OLYMPUS 奥林巴斯
+- OLIMPO
+- OBAIR 欧博
+- OGENERAL 珍宝
+- OLI 奥力
+- ONIX
+- OPAL
+- OPING 欧品
+- ORBEGOZO
+- ORIEME
+- ORIENT
+- OSAKA
+- OUDIAN 欧典
+- OUMEIJIQI 欧美时代
+- OUTES 中广欧特斯
+
+## P
+
+- PANASONIC 松下
+- PHILCO 飞歌
+- PHILIPS 飞利浦
+- PIONEER 先锋
+- PANDA 熊猫
+- PALCSICONS 赢松
+- PAMEASACIO 京松
+- PAMASUOMIS 深松
+- PAMOSAUTC 天津松下
+- PANASUONIC 江苏珠松
+- PANCHROMATIC 东方松下
+- PANATOMIC
+- PAMTONIC
+- PANESONIC
+- PANLISEN 东松
+- PANWOSOCI 正松川
+- PAOHANIC 松川
+- PAONOCA
+- PARTCIOMC
+- PARTMUSIC 深圳日松
+- PARTSOINC 深圳松下
+- PASEONSRC 松厦
+- PASCMIO 中松
+- PASTAMIC
+- PEARL
+- PENSONIC
+- PEORONIC
+- PEREG
+- PGTESS 品格特斯
+- PHIGCO 飞歌中国
+- PIGUO
+- PILOT
+- PINSHANG 品尚
+- PLATMATES 彩星
+- POLAR
+- POLAR ICE
+- POLYTRON
+- PREM-I-AIR
+- PREMIER 拍得丽
+- PREMIUM
+- PRINCE 王子
+- PRIDIOM
+- PROFILO
+- PROTECNO
+- PROTON
+- PUYI
+
+## Q
+
+- QCLIMA
+- QIDI 奇迪
+- QISHENG 奇声
+- QIANJIAYUE 千家悦
+- QIXING
+- QUEEN
+- QUIETSIDE
+
+## R
+
+- ROWA 乐华
+- RASONIC 乐信
+- RENFOSS
+- ROYALSTAR 荣士达
+- RAMSOUND
+- RAYBO 蓝波
+- REDMI 红米
+- RABBIT 玉兔
+- RECCO
+- REE 弘立
+- REETECH
+- RELAX
+- REFLEX
+- REMKO
+- RESTPOINT
+- REX
+- RHEEM
+- RHOSS
+- RICAI 日彩
+- RIELLO
+- RIEWITEC
+- RIJIANG 日江
+- RIPU 日普
+- RISUO 日索
+- RICHVAST 亿达洲
+- ROKA
+- ROLBIT ELECTRONIC
+- RONGSHENG 容声
+- ROLSEN
+- ROYAL
+- RUNCHEN 润臣
+- RUSCLIMATE
+- RYOBISHI
+- RZE 印中兴
+- 日松
+
+## S
+
+- SAMSUNG 三星
+- SHINCO 新科
+- SHARP 夏普
+- SANYO 三洋
+- Sôlt
+- SACON
+- SABRO
+- SAECO
+- SAGA
+- SAIJO DENKI
+- SAMPO
+- SAMPIUNG
+- SAMSONIC
+- SAMY
+- SANKEY
+- SANLEI 三垒
+- SANLINGJIDIAN
+- SANSHANG 三尚
+- SANSUI 山水
+- SANT‘ANDREA
+- SANZHIBIAO 三凌
+- SANZUAN 三钻
+- SAPORO
+- SASUKI
+- SAST 先科
+- SAUNIER DUVAL
+- SCHAUB LORENZ
+- SCHNEIDER ELECRONIC
+- SEARS 西尔斯
+- SEEDSICE 籽米
+- SEKMO
+- SENSOR
+- SENVILLE
+- SERENE 西冷
+- SEVENSTARS 七星
+- SHACOPU 夏科普
+- SHAMEI
+- SHANYE
+- SHANGLIN 上菱
+- SHANXING 山星
+- SHARBO 夏宝
+- SHENGFENG 胜风
+- SHENBAO 绅宝
+- SHENHUA 申花
+- SHIDAICHAO 时代潮
+- SHINELCO
+- SHINELEAF 夏立
+- SHINING 双菱
+- SHOWNIC
+- SHUAIKANG
+- SIEMENS
+- SIEMXMZ
+- SIGMA 希格玛
+- SIMART
+- SIMON-AIRE
+- SINCLAIR
+- SINGER
+- SIRGE
+- SKICE
+- SKERM
+- SKG
+- SKM
+- SKYWORTH 创维
+- SLICK
+- SMARTECH
+- SMARTMI 智米
+- SMNGHONG 松鸿
+- SNOWFLK 雪花
+- SOGO
+- SOLAR AIR
+- SOLEUS AIR
+- SONDOS 松岛
+- SONGGE
+- SONGHONG 松鸿
+- SONGLCC
+- SONGLING 松菱
+- SONLU 双鹿
+- SOOKAI
+- SOVA
+- SOWA
+- SOYEA 索伊数源
+- SPEED
+- SPLENDID
+- SPRINGER
+- SPT
+- SRTC
+- STAR
+- STARCLIMA
+- STAR ELECTRIC
+- STRIGHT
+- STARWAY
+- STELBI
+- STEP
+- STORM
+- SUBTROPIC
+- SUITTC 鑫源
+- SUMIKURA
+- SUMMER
+- SUNBURG 森宝
+- SUNDURG
+- SUNNY 阳光
+- SUNSHINE
+- SUNWING 日翼
+- SUPERCLIMA
+- SUPER GENERAL
+- SUPRAIR 海尔小超人
+- SURREY
+- SUSHIMA
+- SUYAMA
+- SWAN
+- SWIFT
+- SYNCO
+- SYNTEK
+- 松电
+
+## T
+
+- TOSHIBA 东芝
+- TCL
+- TECO 东元
+- TRANE 特灵
+- TACHIAIR
+- TADIRAN
+- TAIYA 太亚
+- TAKADA
+- TAKAMURA 高村
+- TANGO
+- TASAKI
+- TATA
+- TATUNG
+- TAURUS
+- TEAC
+- TECHAIR
+- TECHNIBEL
+- TECNO MASTERS
+- TECTRO
+- TELEFUNKEN
+- TERMOTECK
+- THERMOMEC
+- THTF 清华同方
+- TIANDI
+- TIANHUI 天汇集成
+- TIANJIN 天津
+- TIANYUAN 天元
+- TICA 天加
+- TECHNIBEL
+- TEKNOPOINT
+- THOMSON 汤姆逊
+- TOBO
+- TOMSEN 汤姆森
+- TOKIO
+- TONAL
+- TONGYI 同益
+- TOPPING
+- TORANDO
+- TOSHIBA-CARRIER TOSOT
+- TOTALINE
+- TOYACHII
+- TOYODENKI 东洋电机
+- TOYO 东洋
+- TOYOAIRE
+- TOYO COOL
+- TOYOHUIFENG 东洋汇丰
+- TOYOTOMI 丰臣
+- TRANSCOLD
+- TRONITECHNIK
+- TROTEC
+- TRUMA
+- TUDOR
+- TWINSWAN 双凤
+- 天津三菱
+
+## U
+
+- UBERHAUS
+- UCOOL 优酷
+- ULTIMATE
+- UNI-AIR
+- UNICAL
+- UNIONAIRE
+- UNITELAI
+- UNIVERSAL CLIMA
+
+## V
+
+- VAILLANT
+- VIESSMANN
+- VOLTAS
+- VORTIS
+- VANGL 万居隆
+- VERTEX
+- VESTAR
+- VESTEL
+- VICOO
+- VIDEOCON
+- VIESTA
+- VINO 威诺
+- VIOMI 云米
+- VIVAX
+- VKB
+- VOOPUSE 沃普思
+- VOTON 沃顿
+
+## W
+
+- WHIRLPOOL 惠而浦
+- WEILI 威力
+- WESTINGHOUSE 西屋
+- WANBAO 万宝
+- WAHIN 华菱
+- WEATHERMAKER
+- WEGA-WHITE
+- WEIDENG 威镫
+- WEITELI 威特利
+- WESTPOINT
+- WHIRCIPOL
+- WHITETONE
+- WINNER
+- WINIA
+- WINNO
+- WINS
+- WUFENG 雾峰
+- WUQ 五强
+
+## X
+
+- XILENG
+- XIHU 西湖
+- XIAYANG 夏洋
+- XFFH 新飞飞鸿
+- XINHUABAO 新华宝
+- XINLE 新乐
+- XINYINGYAN 新迎燕
+- XINGHE 星河
+- XFT 雪菲特
+- XIAOYAPAI 小鸭牌
+- XUEFEIDQ
+- XINGFEIDQ
+- XIANFENGJIADIAM 先锋佳电
+- XINCHUNLAN 鑫春兰
+- XINPINGGUO 新苹果
+- XIANFENG 先锋(国产)
+
+## Y
+
+- YORK 约克
+- YAMA
+- YASHIMA
+- YAIR 扬子
+- YAOMA 耀马
+- YETIAN 野田
+- YIRUITE 亿特瑞
+- YOAU
+- YOKO
+- YONAN 永安
+- YUDIAN 宇电
+- YUETU 月兔
+- YNOVIK 一诺维克
+- YDOU 盈豆
+- YINGKU 盈酷
+- YINYAN
+- YIERZI 伊尔兹
+
+## Z
+
+- ZAMIL
+- ZENITH
+- ZEPHIR
+- ZIBRO
+- ZANUSSI
+- ZHENBAO
+- ZHONGYI 中意
+- ZHONGYU 中宇
+- ZHUOLI 卓立
+- ZHUOYUE 卓越
+- ZUODAN 佐丹
+- ZYMBO 深宝
+- ZKFD 中科福德
+- 珠松
+
+
+
+*所列出品牌，仍有可能有个别型号不在支持之列，不保证100%支持其下所有型号
+
+*未列出品牌，仅代表未经测试，不代表不支持
+
+\*Listed brands may still have individual models that are not supported; 100% support of all models under these brands is not guaranteed.
+
+\*Unlisted brands only indicate they have not been tested; this does not mean they are unsupported.
