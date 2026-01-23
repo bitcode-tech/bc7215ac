@@ -63,14 +63,14 @@ init	KEYWORD2
 matchNext	KEYWORD2
 extraSample	KEYWORD2
 saveExtra	KEYWORD2
-cntPredefined	KEYWORD2
-getPredefinedName	KEYWORD2
-initPredefined	KEYWORD2
+getExtra	KEYWORD2
+cntPredef	KEYWORD2
+getPredefName	KEYWORD2
+initPredef	KEYWORD2
 setTo	KEYWORD2
 on	KEYWORD2
 off	KEYWORD2
+parse	KEYWORD2
 getDataPkt	KEYWORD2
 getFormatPkt	KEYWORD2
-getRcvdData	KEYWORD2
-getRcvdFormat	KEYWORD2
-
+getLibVer	KEYWORD2

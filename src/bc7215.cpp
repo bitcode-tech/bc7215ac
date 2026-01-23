@@ -237,9 +237,10 @@ void BC7215::loadFormat(const bc7215FormatPkt_t& source)
     {
         sendOneByte(0xf6);
         sendOneByte(0x01);
-        for (i = 0; i < sizeof(bc7215FormatPkt_t); i++)
+		byteStuffingSend(source.signature.inByte);
+        for (i = 0; i < 32; i++)
         {
-            byteStuffingSend(*(reinterpret_cast<const uint8_t*>(&source) + i));
+            byteStuffingSend(source.format[i]);
         }
     }
 }
@@ -255,10 +256,12 @@ void BC7215::irTx(const bc7215DataVarPkt_t* source)
 		    bc7215Status.cmdComplete = 0;
 		    sendOneByte(0xf5);
 		    sendOneByte(0x02);
-		    bytes = sizeof(source->bitLen) + (source->bitLen + 7) / 8;        // set bytes = total number of data bytes +2
+			byteStuffingSend(source->bitLen&0xff);
+			byteStuffingSend(source->bitLen>>8);
+		    bytes = (source->bitLen + 7) / 8;        // set bytes = total number of data bytes +2
 		    for (i = 0; i < bytes; i++)                                       // send from 2nd byte of the data packet
 		    {
-		        byteStuffingSend(*((uint8_t*)source + i));
+		        byteStuffingSend(source->data[i]);
 		    }
 		}
     }
@@ -505,7 +508,7 @@ void BC7215::processData(uint8_t data)
                 {
                     bc7215Status.dataPktReady = 0;
 #    if ENABLE_FORMAT == 1
-                    if (byteCount == sizeof(bc7215FormatPkt_t))        // check the packet size
+                    if (byteCount == 33)        // check the packet size
                     {
                         bc7215Status.formatPktReady = 1;
                     }

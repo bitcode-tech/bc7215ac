@@ -230,42 +230,24 @@ const bc7215DataVarPkt_t* bc7215_ac_get_base_data(void);
  */
 bool bc7215_ac_init2(uint8_t msgCnt, const bc7215CombinedMsg_t msgs[], uint8_t segGap);
 
-/* ================================================================================================
- * DEBUG FUNCTIONS (Available only in debug builds)
- * ================================================================================================ */
-
-#ifdef _DEBUG
 /**
- * @brief Low-level initialization function for debugging purposes
- * @param status Initial status of the AC system
- * @param dataPktCool25C Reference data packet for cooling at 25°C
- * @return true if initialization successful, false otherwise
- * @note This function is only available in debug builds
- * @warning This is a low-level function intended for debugging only
+ * @brief Parse IR data packet and extract AC control parameters
+ * @details This function analyzes the current data packet and extracts the air conditioner
+ *          control parameters including temperature, operating mode, fan speed, and power state.
+ *          The parsed values are written to the variables pointed to by the provided parameters.
+ * @param temp Pointer to variable where parsed temperature will be stored (0 to 14, referring 16°C to 30°C)
+ * @param mode Pointer to variable where parsed operating mode will be stored (see MODE_* definitions)
+ * @param fan Pointer to variable where parsed fan speed will be stored (see FAN_* definitions)
+ * @param power Pointer to variable where parsed power state will be stored (0 = off, 1 = on, 2 = toggle)
+ * @return true if parsing successful and parameters extracted, false if parsing failed
+ * @note The library must be initialized.
+ * @note The data to be parsed must be loaded via bc7215_ac_replace_base() before this function is called.
+ * @note All pointer parameters must point to valid memory locations
+ * @warning Ensure all pointer parameters are not NULL to avoid undefined behavior
+ * @warning The function may fail if no valid data packet is available for parsing
  */
-bool bc7215_ac_init_low(uint8_t status, const bc7215DataVarPkt_t* dataPktCool25C);
+bool bc7215_ac_parse(int8_t* temp, int8_t* mode, int8_t* fan, int8_t* power);
 
-/**
- * @brief Low-level find next function for debugging purposes
- * @return true if next configuration found, false otherwise
- * @note This function is only available in debug builds
- * @warning This is a low-level function intended for debugging only
- */
-bool bc7215_ac_find_next_low(void);
-
-/**
- * @brief Debug message variable for internal debugging
- * @note Only available in debug builds, used for debugging message handling
- */
-extern int msg;
-
-/**
- * @brief Debug parameter number variable for internal debugging
- * @note Only available in debug builds, used for tracking parameter numbers during debugging
- */
-extern int pnum;
-
-#endif /* _DEBUG */
 
 #ifdef __cplusplus
 }

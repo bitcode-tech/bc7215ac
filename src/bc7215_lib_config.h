@@ -11,7 +11,6 @@
  * Author: Bitcode
  * Date: 2024-01-12
  *
- * Version: 1.1
  *
  * Notes:
  *   This configuration file is essential for the BC7215 library. The definitions
@@ -25,28 +24,41 @@
 #ifndef BC7215_LIB_CONFIG_H
 #define BC7215_LIB_CONFIG_H
 
-// If only encoding (transmitting) is used,
-// change this value to '0' to save system resources (less code and less RAM used)
+/* If UART sending uses hardware flow control (CTS) 0 = No */
+#define TX_HW_FLOW_CONTROL 0
+
+/* If bc7215_process_uart_data() is called in UART interrupt 1 = Yes */
+#define USE_UART_INTERRUPT 1
+
+/* If bc7215_process_uart_data() is not called in interrupt but in a different thread 0 = No */
+#define PROCESS_IN_DIFFERENT_THREAD 0
+
+/* If IR receiving(decoding) is enabled, 1 = Yes
+ * change this value to '0' to save system resources (less code and less RAM used) 
+ */
 #define ENABLE_RECEIVING 1
 
 #if ENABLE_RECEIVING == 1
 
-// If only data packet is needed and BC7215 will always work in simple mode,
-// change this value to '0' to save system resources (less code and less RAM used)
-#    define ENABLE_FORMAT 1
+/* If only data packet is needed and BC7215 will always work in simple mode, 1 = Yes
+ * change this value to '0' to save system resources (less code and less RAM used)
+ */
+#define ENABLE_FORMAT 1
 
 #endif
 
-// If only decoding (receiving) is used,
-// change this value to '0' save system resources (less code)
+/* If IR transmitting is enabled, 1 = Yes
+ * change this value to '0' save system resources (less code)
+ */
 #define ENABLE_TRANSMITTING 1
 
-// Maximum processable payload data length in byte, this value must <= 512,
-// most IR remote controllers send less than 32 bytes. The larger this value,
-// the larger memory is required to run this library.
-#define BC7215_MAX_RX_DATA_SIZE 48
+/* Maximum processable payload data length in byte, this value must <= 512,
+ * most IR remote controllers send less than 42 bytes. The larger this value,
+ * the larger memory is required to run this library.
+ */
+#define BC7215_MAX_RX_DATA_SIZE 56
 
-// the polynominal used for CRC calculation, default is 0x07 for CRC-8-CCITT
+/* the polynominal used for CRC calculation, default is 0x07 for CRC-8-CCITT */
 #define BC7215_CRC8_POLY 0x07
 
 #endif /* BC7215_LIB_CONFIG_H */

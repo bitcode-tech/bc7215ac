@@ -1,26 +1,23 @@
 /*
- * ESP8266_AC_CTRL_nonblocking.ino
+ * Nano33IoT_AC_Serial_Monitor.ino
  *
- * Description: This program enables control of an air conditioner using an ESP8266 microcontroller
- * with a BC7215 IR module. It supports capturing IR signals from an AC remote, initializing the control
- * library, saving/loading settings to/from EEPROM, and controlling AC parameters (temperature, mode, fan speed).
- * The program provides a serial interface for user interaction to initialize, control, and manage AC settings.
- *
- * Hardware: ESP8266 (NodeMCU), BC7215 IR module
- * Dependencies: bc7215.h, bc7215ac.h, SoftwareSerial.h, EEPROM.h
+ * Description: Nano 33 IoT Air Conditioner Infrared Controller
+ * Features: Control air conditioners using BC7215 IR module, supports IR signal sampling,
+ * parameter setting, data backup/restore, multiple control modes, etc.
+ * Hardware: Arduino Nano 33 IoT, BC7215 IR module
+ * Dependencies: bc7215.h, bc7215ac.h, FlashStorage.h (Official Arduino version)
  * Author: Bitcode
- * Date: 2025-08-05
+ * Date: 2026-01-13
  */
 
-#include <EEPROM.h>
-#include <SoftwareSerial.h>
+#include <FlashStorage.h>        // Official Arduino FlashStorage for SAMD21
 #include <bc7215.h>
 #include <bc7215ac.h>
 
 // Pin and constant definitions
-const int LED = 2;             // NodeMCU onboard LED pin
-const int MOD_PIN = 0;         // User specified: mod=GPIO0
-const int BUSY_PIN = 4;        // User specified: busy=GPIO4
+const int LED = LED_BUILTIN;        // Onboard LED pin
+const int MOD_PIN = 3;              // User specified: mod=D3
+const int BUSY_PIN = 2;             // User specified: busy=D2
 
 const String MODES[] = { "Auto", "Cool", "Heat", "Dry", "Fan", "Keep", "n/a" };
 const String FANSPEED[] = { "Auto", "Low", "Med", "High", "Keep", "n/a" };
@@ -51,10 +48,21 @@ enum L2_STATE
     STEP7        // Secondary state steps
 };
 
-// Software serial for BC7215 communication
-SoftwareSerial bc7215Serial(5, 16);        // Rx, Tx pins
-BC7215         bc7215Board(bc7215Serial, MOD_PIN, BUSY_PIN);
-BC7215AC       ac(bc7215Board);        // AC control object
+// BC7215 communication setup
+// Nano 33 IoT hardware Serial1 is on Pins 0 (RX) and 1 (TX)
+BC7215   bc7215Board(Serial1, MOD_PIN, BUSY_PIN);
+BC7215AC ac(bc7215Board);
+
+// Flash Storage definition for data persistence
+typedef struct
+{
+    bc7215FormatPkt_t  format;
+    bc7215DataMaxPkt_t data;
+    bool               valid;
+} BC7215Store;
+
+// The official FlashStorage library uses this macro
+FlashStorage(storage, BC7215Store);
 
 // Global variables
 char                      choice;
@@ -70,16 +78,15 @@ bc7215DataMaxPkt_t        irData;
 bc7215FormatPkt_t         irFormat;
 
 /*
- * Setup function: Initializes EEPROM, serial communications, and LED pin.
+ * Setup: Initialize serial communication and LED
  */
 void setup()
 {
-    EEPROM.begin(33 + sizeof(bc7215DataMaxPkt_t));        // Initialize EEPROM with required size
-    Serial.begin(115200);                                 // Start hardware serial for debugging
+    Serial.begin(115200);        // Debug serial
     Serial.setTimeout(50);
-    bc7215Serial.begin(19200, SWSERIAL_8N2);        // Start software serial for BC7215
-    pinMode(LED, OUTPUT);                           // Set LED pin as output
-    ledOff();                                       // Turn off LED initially
+    Serial1.begin(19200, SERIAL_8N2);        // BC7215 hardware serial
+    pinMode(LED, OUTPUT);                    // LED output mode
+    ledOff();
     mainState = MAIN_MENU;
     l2State = STEP1;
     interval = 10;
@@ -451,23 +458,20 @@ void backupJob()
     switch (l2State)
     {
     case STEP1:
-        if (ac.initOK)
-        {
-            formatPkt = ac.getFormatPkt();
-            dataPkt = ac.getDataPkt();
-            EEPROM.put(0, *formatPkt);                              // save data to EEPROM
-            EEPROM.put(33, *((bc7215DataMaxPkt_t*)dataPkt));        // save format to EEPROM
-            EEPROM.commit();
-            Serial.println("\nFormat info: ");
-            printData(formatPkt, 33);
-            Serial.print("Data: ");
-            printData(dataPkt->data, (dataPkt->bitLen + 7) / 8);
-            Serial.println("Information saved to Flash memory");
-        }
-        else
-        {
-            Serial.println("\nThis function is only available after pairing");
-        }
+        formatPkt = ac.getFormatPkt();
+        dataPkt = ac.getDataPkt();
+
+        BC7215Store config;
+        config.format = *formatPkt;
+        config.data = *((bc7215DataMaxPkt_t*)dataPkt);
+        config.valid = true;
+        storage.write(config);        // Save structure to Flash
+
+        Serial.println("\nFormat info: ");
+        printData(formatPkt, 33);
+        Serial.print("Data: ");
+        printData(dataPkt->data, (dataPkt->bitLen + 7) / 8);
+        Serial.println("Information saved to Flash memory");
         l2State = STEP2;
         break;
     case STEP2:        // Wait for user confirmation
@@ -488,26 +492,36 @@ void backupJob()
  */
 void restoreJob()
 {
+    BC7215Store config;
     switch (l2State)
     {
     case STEP1:
-        EEPROM.get(0, irFormat);        // Load format from EEPROM
-        EEPROM.get(33, irData);         // Load data from EEPROM
-        Serial.println("\nUsing saved configuration from Flash");
-        Serial.print("Format info: ");
-        printData(&irFormat, sizeof(bc7215FormatPkt_t));
-        Serial.print("Data: ");
-        printData(&irData.data, (irData.bitLen + 7) / 8);
+        config = storage.read();        // Read structure from Flash
+        irFormat = config.format;
+        irData = config.data;
 
-        if (ac.init(irData, irFormat))
+        if (config.valid)
         {
-            Serial.println("AC control library initialization  ***SUCCESS*** !");
-            ledOn();
+            Serial.println("\nUsing saved configuration from Flash");
+            Serial.print("Format info: ");
+            printData(&irFormat, sizeof(bc7215FormatPkt_t));
+            Serial.print("Data: ");
+            printData(&irData.data, (irData.bitLen + 7) / 8);
+
+            if (ac.init(irData, irFormat))
+            {
+                Serial.println("AC control library initialization  ***SUCCESS*** !");
+                ledOn();
+            }
+            else
+            {
+                Serial.println("AC control library initialization failed...");
+                ledOff();
+            }
         }
         else
         {
-            Serial.println("AC control library initialization failed...");
-            ledOff();
+            Serial.println("No saved data found in Flash.");
         }
         Serial.println("Enter any content to continue");
         l2State = STEP2;
@@ -785,6 +799,6 @@ void printData(const void* data, uint8_t len)
 /*
  * LED control functions: Nano 33 IoT onboard LED is Active High
  */
-void ledOn() { digitalWrite(LED, LOW); }
-void ledOff() { digitalWrite(LED, HIGH); }
+void ledOn() { digitalWrite(LED, HIGH); }
+void ledOff() { digitalWrite(LED, LOW); }
 void ledToggle() { digitalWrite(LED, !digitalRead(LED)); }

@@ -1,12 +1,12 @@
 /*
  * ESP32 空调控制器 MQTT版本
- * 
+ *
  * 本程序使用ESP32微控制器控制空调，具有以下功能：
  * - BC7215A 红外收发模块发送空调控制信号
  * - TFT显示屏用户界面 (TTGO T-Display)
  * - WiFi连接MQTT通信，通过MQTT控制空调
  * - 物理按钮手动控制，并将最新空调状态上传至MQTT
- * 
+ *
  * 功能特点：
  * - 离线空调码库, 任意品牌/型号
  * - 一键学习(配对)
@@ -15,19 +15,19 @@
  * - 中文界面和状态指示器
  */
 
+#include "Dengl16.h"
 #include <Preferences.h>
 #include <PubSubClient.h>
 #include <SPI.h>
 #include <TFT_eSPI.h>
-#include "Dengl16.h"
 #include <WiFi.h>
 #include <bc7215.h>
 #include <bc7215ac.h>
 
 // WiFi和设备配置 - 请替换为您自己的值
-// #define MY_WIFI_SSID     "你的WiFi名称"    // 替换为您的WiFi名称
-// #define MY_WIFI_PASSWORD "你的WiFi密码"    // 替换为您的WiFi密码
-// #define MY_UUID          "你的UUID"        // 使用UUID生成器创建唯一设备ID
+//#define MY_WIFI_SSID     "******"                                      // 替换为您的WiFi名称
+//#define MY_WIFI_PASSWORD "*************"                               // 替换为您的WiFi密码
+//#define MY_UUID          "********-****-****-****-************"        // 使用UUID生成器创建唯一设备ID
 
 // 编译检查必要配置
 #if !defined(MY_WIFI_SSID) || !defined(MY_WIFI_PASSWORD) || !defined(MY_UUID)
@@ -48,35 +48,35 @@ const char*    WIFI_PASSWORD = MY_WIFI_PASSWORD;
 const char*    MQTT_HOST = "broker.emqx.io";        // 公共MQTT代理（可使用其他）
 const uint16_t MQTT_PORT = 1883;
 const char*    MQTT_CLIENT_ID = MY_UUID;
-const char*    MQTT_LWT = "BC7215A/" MY_UUID "/status";           // 遗嘱主题
-const char*    TEMP_TOPIC = "BC7215A/" MY_UUID "/var/temp";       // 温度控制主题
-const char*    MODE_TOPIC = "BC7215A/" MY_UUID "/var/mode";       // 空调模式控制主题
-const char*    FAN_TOPIC = "BC7215A/" MY_UUID "/var/fan";         // 风速控制主题
-const char*    POWER_TOPIC = "BC7215A/" MY_UUID "/var/power";     // 电源开关主题
-const char*    REPORT_TOPIC = "BC7215A/" MY_UUID "/var/report";   // 状态报告主题
+const char*    MQTT_LWT = "BC7215A/" MY_UUID "/status";                // 遗嘱主题
+const char*    TEMP_TOPIC = "BC7215A/" MY_UUID "/var/temp";            // 温度控制主题
+const char*    MODE_TOPIC = "BC7215A/" MY_UUID "/var/mode";            // 空调模式控制主题
+const char*    FAN_TOPIC = "BC7215A/" MY_UUID "/var/fan";              // 风速控制主题
+const char*    POWER_TOPIC = "BC7215A/" MY_UUID "/var/power";          // 电源开关主题
+const char*    REPORT_TOPIC = "BC7215A/" MY_UUID "/var/report";        // 状态报告主题
 
 // ======= 显示常量 (竖屏 135x240) =======
 #define SCREEN_W 135
 #define SCREEN_H 240
 
 // ======= 主题颜色 =======
-static const uint16_t COLOR_BG = TFT_WHITE;                // 背景色
-static const uint16_t COLOR_TEXT = TFT_BLACK;              // 文字色
-static const uint16_t COLOR_ONLINE_BADGE = TFT_DARKCYAN;   // 在线状态标识背景色
-static const uint16_t COLOR_LABEL_BG = TFT_DARKCYAN;   	   // 在线状态标识背景色
-static const uint16_t COLOR_BADGE_FG = TFT_WHITE;          // 标识文字色
-static const uint16_t COLOR_ACTION_BG = TFT_LIGHTGREY;     // 底部按钮背景色
-static const uint16_t COLOR_ACTION_FG = TFT_BLACK;         // 底部按钮文字色
-static const uint16_t COLOR_ACTIVE_BADGE = TFT_RED;        // 活动/发送时的标识色
+static const uint16_t COLOR_BG = TFT_WHITE;                     // 背景色
+static const uint16_t COLOR_TEXT = TFT_BLACK;                   // 文字色
+static const uint16_t COLOR_ONLINE_BADGE = TFT_DARKCYAN;        // 在线状态标识背景色
+static const uint16_t COLOR_LABEL_BG = TFT_DARKCYAN;            // 在线状态标识背景色
+static const uint16_t COLOR_BADGE_FG = TFT_WHITE;               // 标识文字色
+static const uint16_t COLOR_ACTION_BG = TFT_LIGHTGREY;          // 底部按钮背景色
+static const uint16_t COLOR_ACTION_FG = TFT_BLACK;              // 底部按钮文字色
+static const uint16_t COLOR_ACTIVE_BADGE = TFT_RED;             // 活动/发送时的标识色
 
 // ======= 顶部标识布局（等分布，统一大小）=======
-#define BADGE_FONT        1              // 标识字体大小
-#define BADGE_SIZE        1              // 标识文字缩放
-#define BADGE_RADIUS      2              // 标识圆角半径
-#define BADGE_Y           6              // 标识Y位置
-#define BADGE_HEIGHT      12             // 标识高度（文字+上下约2px）
-#define BADGE_SIDE_MARGIN 3              // 左右边距
-#define BADGE_GAP         6              // 标识间隙
+#define BADGE_FONT        1         // 标识字体大小
+#define BADGE_SIZE        1         // 标识文字缩放
+#define BADGE_RADIUS      2         // 标识圆角半径
+#define BADGE_Y           6         // 标识Y位置
+#define BADGE_HEIGHT      12        // 标识高度（文字+上下约2px）
+#define BADGE_SIDE_MARGIN 3         // 左右边距
+#define BADGE_GAP         6         // 标识间隙
 #define BADGE_WIDTH       ((SCREEN_W - 2 * BADGE_SIDE_MARGIN - 2 * BADGE_GAP) / 3)
 
 // ======= 布局参数（仅基本定位）=======
@@ -96,158 +96,115 @@ struct Layout
 } L;
 
 // ====== 显示内容数组 =======
-const String MODES[] = { " 自动 ", " 制冷 ", " 制热 ", " 除湿 ", " 送风 " };        // 空调运行模式
-const String FANSPEED[] = { " 自动 ", " 低速 ", " 中速 ", " 高速 " };               // 风速级别
-const String EXTRA_KEY[] = { "温度+/-", "模式", "风速" };                           // 需额外信号捕获的遥控器按键
-const char*  MAIN_MENU[] = { "采集并初始化", "查找下一匹配", "加载预定义", "退出" };
+const String MODES[] = { " 自动 ", " 制冷 ", " 制热 ", " 除湿 ", " 送风 ", " -- " };        // 空调运行模式
+const String FANSPEED[] = { " 自动 ", " 低速 ", " 中速 ", " 高速 ", " -- " };               // 风速级别
+const String PWR_STATUS[] = { " 关 ", " 开 ", " 翻转 ", " -- " };
+const String EXTRA_KEY[] = { "温度+/-", "模式", "风速" };        // 需额外信号捕获的遥控器按键
+const char*  MAIN_MENU[] = { "采集并配对", "查找下一匹配", "加载预置协议", "红外解析", "退出" };
 
 // ======= 状态机枚举 =======
 
 // 主应用状态 (一级)
 enum L1_STATE
 {
-    START,          // 初始启动状态
-    INIT,           // 空调库初始化
-    TEMP_CTL,       // 温度控制模式（主要操作）
-    ON_OFF_CTL,     // 电源开关控制
-    MENU_MAIN,      // 主菜单显示
-    MENU_PREDEF,    // 预定义空调遥控协议菜单
-    FIND_NEXT,      // 查找下一个匹配的空调协议
-    IR_SENDING,     // 正在发送红外信号
-    NOT_CONNECTED   // BC7215模块未连接
+    START,               // 初始启动状态
+    INIT,                // 空调库初始化
+    TEMP_CTL,            // 温度控制模式（主要操作）
+    ON_OFF_CTL,          // 电源开关控制
+    MENU_MAIN,           // 主菜单显示
+    MENU_PREDEF,         // 预定义空调遥控协议菜单
+    FIND_NEXT,           // 查找下一个匹配的空调协议
+    IR_SENDING,          // 正在发送红外信号
+    IR_PARSING,          // 解析红外信号
+    NOT_CONNECTED        // BC7215模块未连接
 };
 
 // 复杂操作的子状态 (二级)
 enum L2_STATE
 {
-    STEP1, STEP2, STEP3, STEP4, STEP5, STEP6, STEP7
+    STEP1,
+    STEP2,
+    STEP3,
+    STEP4,
+    STEP5,
+    STEP6,
+    STEP7
 };
 
 // 按钮按下检测状态
 enum KEYBOARD_STATE
 {
-    BOTH_RELEASED,      // 无按钮按下
-    ONE_PRESSED,        // 单个按钮按下
-    BOTH_PRESSED,       // 两个按钮都按下
-    ONE_RELEASED,       // 一个按钮释放，另一个仍按下
-    ONE_LONG_PRESSED,   // 单个按钮长按
-    BOTH_LONG_PRESSED   // 两个按钮长按
+    BOTH_RELEASED,           // 无按钮按下
+    ONE_PRESSED,             // 单个按钮按下
+    BOTH_PRESSED,            // 两个按钮都按下
+    ONE_RELEASED,            // 一个按钮释放，另一个仍按下
+    ONE_LONG_PRESSED,        // 单个按钮长按
+    BOTH_LONG_PRESSED        // 两个按钮长按
 };
 
 // 从状态机生成的按钮事件
 enum KEY_EVENT
 {
-    NO_KEY,             // 无按钮事件
-    LEFT_KEY_SHORT,     // 左按钮短按
-    RIGHT_KEY_SHORT,    // 右按钮短按
-    LEFT_KEY_LONG,      // 左按钮长按
-    RIGHT_KEY_LONG,     // 右按钮长按
-    BOTH_KEY_SHORT,     // 两按钮短按
-    BOTH_KEY_LONG       // 两按钮长按
+    NO_KEY,                 // 无按钮事件
+    LEFT_KEY_SHORT,         // 左按钮短按
+    RIGHT_KEY_SHORT,        // 右按钮短按
+    LEFT_KEY_LONG,          // 左按钮长按
+    RIGHT_KEY_LONG,         // 右按钮长按
+    BOTH_KEY_SHORT,         // 两按钮短按
+    BOTH_KEY_LONG           // 两按钮长按
 };
 
 // 网络连接状态
 enum NET_STATUS
 {
-    WAITING,       // 等待连接
-    CONNECTING,     // 连接中
-    CONNECTED       // 已连接
+    WAITING,           // 等待连接
+    CONNECTING,        // 连接中
+    CONNECTED,         // 已连接
+    UNAVAILABLE        // 不可用
 };
 
 // ======= 全局对象和变量 =======
-Preferences    savedData;                           // 空调库初始化信息的非易失性存储
-TFT_eSPI       tft = TFT_eSPI();                   // TFT显示对象
-WiFiClient     esp32WiFi;                          // WiFi客户端
-PubSubClient   mqtt(esp32WiFi);                    // MQTT客户端
-HardwareSerial BC7215_SERIAL(1);                  // BC7215通信串口使用串口1
-BC7215         bc7215Board(BC7215_SERIAL, BC7215_MOD, BC7215_BUSY);  // BC7215控制对象
-BC7215AC       ac(bc7215Board);                    // 空调控制库对象
+Preferences    savedData;               // 空调库初始化信息的非易失性存储
+TFT_eSPI       tft = TFT_eSPI();        // TFT显示对象
+WiFiClient     esp32WiFi;               // WiFi客户端
+PubSubClient   mqtt(esp32WiFi);         // MQTT客户端
+HardwareSerial BC7215_SERIAL(1);        // BC7215通信串口使用串口1
+BC7215         bc7215Board(BC7215_SERIAL, BC7215_MOD, BC7215_BUSY);        // BC7215控制对象
+BC7215AC       ac(bc7215Board);                                            // 空调控制库对象
 
 // 状态变量
-L1_STATE                  mainState;               // 当前主状态
-L1_STATE                  retState;                // 红外发送后的返回状态
-L2_STATE                  l2State;                 // 当前子状态
-NET_STATUS                wifiState;               // WiFi连接状态
-NET_STATUS                mqttState;               // MQTT连接状态
-KEYBOARD_STATE            keyboardState;           // 当前按钮状态
-KEY_EVENT                 keyEvent;                // 最后按钮事件
+L1_STATE       mainState;            // 当前主状态
+L1_STATE       retState;             // 红外发送后的返回状态
+L2_STATE       l2State;              // 当前子状态
+NET_STATUS     wifiState;            // WiFi连接状态
+NET_STATUS     mqttState;            // MQTT连接状态
+KEYBOARD_STATE keyboardState;        // 当前按钮状态
+KEY_EVENT      keyEvent;             // 最后按钮事件
 
 // 控制变量
-int                       interval;                // 主循环延迟间隔
-int                       temp = 25;               // 当前温度设置 (25°C)
-int                       mode = 1;                // 当前空调模式 (1 = 制冷)
-int                       fan = 1;                 // 当前风速 (1 = 低速)
-int                       remoteBtn = 0;           // 最后按下的遥控器按钮 (0 = 温度-)
-const char**              menuItems;               // 当前菜单项数组
-const char**              preDefs;                 // 预定义空调型号数组
-int                       currentMenuSelection;    // 当前选中的菜单项
-bool                      usingCelsius = true;    // 温度单位标志
-unsigned int              timerMs;                // 通用定时器
-int                       msgCnt;                 // 消息计数器
-int                       idleCntr;               // 空闲计数器
-int                       extra;                  // 需要的额外红外信号
-int                       savedTemp;              // 临时温度存储
-int8_t                    matchCnt;               // 找到的空调协议匹配数
-bool                      mqttCmd = false;        // 标识命令来自MQTT
-bool					  irSending = false;	  // 标识红外正在发射
-bool					  initOK = false;		  // 标识已成功初始化
+int           interval;                    // 主循环延迟间隔
+int           temp = 25;                   // 当前温度设置 (25°C)
+int           mode = 1;                    // 当前空调模式 (1 = 制冷)
+int           fan = 1;                     // 当前风速 (1 = 低速)
+int           remoteBtn = 0;               // 最后按下的遥控器按钮 (0 = 温度-)
+const char**  menuItems;                   // 当前菜单项数组
+const char**  preDefs;                     // 预定义空调型号数组
+int           currentMenuSelection;        // 当前选中的菜单项
+bool          usingCelsius = true;         // 温度单位标志
+unsigned long startTime;                   // 通用计时器
+unsigned long wifiStartTime;               // wifi连接计时器
+unsigned long mqttStartTime;               // mqtt连接计时器
+int           extra;                       // 需要的额外红外信号
+int           savedTemp;                   // 临时温度存储
+int8_t        matchCnt;                    // 找到的空调协议匹配数
+bool          mqttCmd = false;             // 标识命令来自MQTT
+bool          irSending = false;           // 标识红外正在发射
 
 // BC7215数据结构
-const bc7215DataVarPkt_t* dataPkt;                // 红外数据包指针
-const bc7215FormatPkt_t*  formatPkt;              // 红外格式包指针
-bc7215DataMaxPkt_t        sampleData[4];          // 捕获的红外数据存储
-bc7215FormatPkt_t         sampleFormat[4];        // 捕获的红外格式存储
-
-// ================== 函数声明 ==================
-void powerup();
-void initAC();
-void tempCtrl();
-void onOffCtrl();
-void mainMenu();
-void predefMenu();
-void findNext();
-void acDispUpdate();
-void acStatUpdate();
-void saveInitInfo();
-void flashNoConn();
-void wifiConnect();
-void mqttConnect();
-void mqttOnlineAction();
-void processMqtt(char* topic, byte* payload, unsigned int length);
-void updateKeyStatus();
-
-// 显示函数
-void computeTopBadgesLayout();
-void drawBadge(int xStart, uint16_t bg, const char* text);
-void clearNumberArea();
-void drawBigNumber(const String& value);
-void drawModeLabel(int mode);
-void drawFanLabel(int fan);
-void clearCentralArea();
-void drawTempButtons();
-void drawMenuButtons();
-void drawOKButton();
-void drawEscButton();
-void drawSELButton();
-void drawOnOffButtons();
-void clearLeftBtn();
-void clearRightBtn();
-void showMenu(const char* items[], int cnt);
-void updateMenu(int selected);
-void drawIrBadge(uint16_t color);
-void drawWiFiBadge(uint16_t color);
-void drawMqttBadge(uint16_t color);
-void showInitScrn1();
-void showInitScrn2(const String& keyText);
-void showInitScrn3(const String& keyText);
-void showInitScrn4();
-void showInitScrn5();
-void showInitScrn6();
-void showInitOKMsg();
-void showInitFailMsg();
-void showNextMatchScrn(int8_t matchCnt);
-void showNextFailScrn();
-void showNoInitScrn();
+const bc7215DataVarPkt_t* dataPkt;          // 红外数据包指针
+const bc7215FormatPkt_t*  formatPkt;        // 红外格式包指针
+bc7215DataMaxPkt_t        irData;           // 获取的红外数据存储
+bc7215FormatPkt_t         irFormat;         // 获取的红外格式存储
 
 // ================== Arduino标准函数 ==================
 
@@ -255,13 +212,13 @@ void setup()
 {
     // 初始化串口通信用于调试
     Serial.begin(115200);
-    
+
     // 初始化TFT显示
     tft.init();
     tft.setRotation(0);                // 竖屏方向 (135x240)
     tft.setTextDatum(TC_DATUM);        // 顶部居中文字对齐
-	tft.loadFont(Dengl16);
-    
+    tft.loadFont(Dengl16);
+
     // 配置按钮引脚
     pinMode(BUTTON_LEFT, INPUT_PULLUP);
     pinMode(BUTTON_RIGHT, INPUT);
@@ -269,20 +226,21 @@ void setup()
     // 初始化BC7215串口通信
     BC7215_SERIAL.begin(19200, SERIAL_8N2, BC7215_PORT_RX, BC7215_PORT_TX);
     Serial.println("BC7215 串口已初始化");
-    
+
     // 初始化预定义空调协议数组
     preDefs = new const char*[ac.cntPredef()];
     for (int i = 0; i < ac.cntPredef(); i++)
     {
         preDefs[i] = ac.getPredefName(i);
     }
-    
+
     // 初始化状态变量
     mainState = START;
     l2State = STEP1;
     keyboardState = BOTH_RELEASED;
     keyEvent = NO_KEY;
     interval = 10;
+    delay(100);
 }
 
 void loop()
@@ -291,65 +249,67 @@ void loop()
     switch (mainState)
     {
     case START:
-        powerup();              // 处理启动序列
+        powerup();        // 处理启动序列
         break;
     case INIT:
-        initAC();              // 处理空调库初始化
+        initAC();        // 处理空调库初始化
         break;
     case TEMP_CTL:
-        tempCtrl();            // 处理温度控制界面
+        tempCtrl();        // 处理温度控制界面
         break;
     case ON_OFF_CTL:
-        onOffCtrl();           // 处理电源开关界面
+        onOffCtrl();        // 处理电源开关界面
         break;
     case MENU_MAIN:
-        mainMenu();            // 处理主菜单导航
+        mainMenu();        // 处理主菜单导航
         break;
     case MENU_PREDEF:
-        predefMenu();          // 处理预定义空调型号菜单
+        predefMenu();        // 处理预定义空调型号菜单
         break;
     case FIND_NEXT:
-        findNext();            // 处理查找下一个空调协议匹配
+        findNext();        // 处理查找下一个空调协议匹配
         break;
-    case IR_SENDING:           // 等待红外传输完成
+    case IR_SENDING:        // 等待红外传输完成
         if (!ac.isBusy())
         {
-			irSending = false;
+            irSending = false;
             drawIrBadge(COLOR_BG);        // 清除红外活动指示器
             if (mqttCmd)
             {
-				mqttCmd = false;
+                mqttCmd = false;
                 drawMqttBadge(COLOR_ONLINE_BADGE);        // 恢复MQTT标识为正常颜色
             }
-            mainState = retState;         // 返回到之前的状态
+            mainState = retState;        // 返回到之前的状态
         }
-		else
-		{
-			timerMs += interval;
-			if (timerMs > 3000)				// 发送超时
-			{
-				irSending = false;
-	            drawIrBadge(COLOR_BG);        // 清除红外活动指示器
-	            if (mqttCmd)
-	            {
-					mqttCmd = false;
-	                drawMqttBadge(COLOR_ONLINE_BADGE);        // 恢复MQTT标识为正常颜色
-	            }
-	            mainState = retState;         // 返回到之前的状态
-			}
-		}
+        else
+        {
+            if (millis() - startTime > 3000)
+            {
+                irSending = false;
+                drawIrBadge(COLOR_BG);        // 清除红外活动指示器
+                if (mqttCmd)
+                {
+                    mqttCmd = false;
+                    drawMqttBadge(COLOR_ONLINE_BADGE);        // 恢复MQTT标识为正常颜色
+                }
+                mainState = retState;        // 返回到之前的状态
+            }
+        }
+        break;
+    case IR_PARSING:
+        irParsing();
         break;
     case NOT_CONNECTED:
-        flashNoConn();         // 显示未找到BC7215A错误
+        flashNoConn();        // 显示未找到BC7215A错误
         break;
     default:
         break;
     }
-    
+
     // 处理网络连接和输入
-    wifiConnect();             // 管理WiFi连接
-    mqttConnect();             // 管理MQTT连接
-    updateKeyStatus();         // 处理按钮输入
+    wifiConnect();            // 管理WiFi连接
+    mqttConnect();            // 管理MQTT连接
+    updateKeyStatus();        // 处理按钮输入
     delay(interval);
 }
 
@@ -364,54 +324,56 @@ void powerup()
     case STEP1:
         // 清屏并初始化BC7215
         tft.fillScreen(COLOR_BG);
-        bc7215Board.setTx();           // 设置BC7215为发送模式
+        bc7215Board.setRx();
         delay(50);
-        bc7215Board.setShutDown();     // 让BC7215进入关机模式
-        timerMs = 0;
-	    // 初始化WiFi连接
-	    WiFi.mode(WIFI_STA);
-	    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-	    
-	    // 初始化MQTT客户端
-	    mqtt.setServer(MQTT_HOST, MQTT_PORT);
-	    mqtt.setCallback(processMqtt);
-	    wifiState = CONNECTING;
-	    mqttState = WAITING;
+        bc7215Board.setTx();        // 设置BC7215为发送模式
+        delay(50);
+        bc7215Board.setShutDown();        // 让BC7215进入关机模式
+        startTime = millis();
+        // 初始化WiFi连接
+        WiFi.mode(WIFI_STA);
+        WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+        // 初始化MQTT客户端
+        mqtt.setServer(MQTT_HOST, MQTT_PORT);
+        mqtt.setCallback(processMqtt);
+        wifiStartTime = millis();
+        wifiState = CONNECTING;
+        mqttState = WAITING;
 
         l2State = STEP2;
         break;
-        
+
     case STEP2:
         // 等待BC7215准备就绪
         if (!bc7215Board.isBusy())
         {
-            bc7215Board.setRx();       // 唤醒BC7215并设置为接收模式
+            bc7215Board.setRx();        // 唤醒BC7215并设置为接收模式
             delay(50);
+            bc7215Board.setTx();
             l2State = STEP3;
         }
         else
         {
             // 超时处理
-            timerMs += interval;
-            if (timerMs > 1000)
+            if (millis() - startTime > 1000)
             {
                 mainState = NOT_CONNECTED;
-                timerMs = 0;
+                startTime = millis();
             }
         }
         break;
-        
+
     case STEP3:
         // 从闪存加载保存的空调配置
         savedData.begin("bc7215 init", true);
-        savedData.getBytes("format", &sampleFormat[0], sizeof(bc7215FormatPkt_t));
-        savedData.getBytes("data", &sampleData[0], sizeof(bc7215DataMaxPkt_t));
+        savedData.getBytes("format", &irFormat, sizeof(bc7215FormatPkt_t));
+        savedData.getBytes("data", &irData, sizeof(bc7215DataMaxPkt_t));
         savedData.getBytes("matchIndex", &matchCnt, sizeof(matchCnt));
-        
+
         // 尝试用保存的数据初始化空调
-        if (ac.init(sampleData[0], sampleFormat[0]))
+        if (ac.init(irData, irFormat))
         {
-			initOK = true;
             // 如果有多个匹配，导航到正确的那个
             if (matchCnt > 0)
             {
@@ -422,25 +384,25 @@ void powerup()
                 }
                 if (!result)        // 如果找不到那个匹配，使用原始的
                 {
-                    ac.init(sampleData[0], sampleFormat[0]);
+                    ac.init(irData, irFormat);
                     matchCnt = 0;
                 }
             }
-            
+
             // 如果初始化成功，但需加载额外的格式信息
             if (ac.extraSample())
             {
-                savedData.getBytes("extraFormat", &sampleFormat[1], sizeof(bc7215FormatPkt_t));
-                savedData.getBytes("extraData", &sampleData[1], sizeof(bc7215DataMaxPkt_t));
-                ac.saveExtra((bc7215DataVarPkt_t*)&sampleData[1], &sampleFormat[1]);
+                savedData.getBytes("extraFormat", &irFormat, sizeof(bc7215FormatPkt_t));
+                savedData.getBytes("extraData", &irData, sizeof(bc7215DataMaxPkt_t));
+                ac.saveExtra(irData, irFormat);
             }
-            
+
             // 初始化默认空调设置
             temp = 25;
             mode = 1;
             fan = 1;
             mainState = TEMP_CTL;
-            
+
             // 显示初始界面
             drawBigNumber(String(temp));
             drawModeLabel(mode);
@@ -450,7 +412,6 @@ void powerup()
         else
         {
             // 初始化不成功，显示主菜单
-			initOK = false;
             mainState = MENU_MAIN;
             showMenu(MAIN_MENU, sizeof(MAIN_MENU) / sizeof(char*));
             currentMenuSelection = 0;
@@ -479,105 +440,76 @@ void initAC()
         showInitScrn1();
         l2State = STEP2;
         break;
-        
+
     case STEP2:
         // 等待用户开始捕获或取消
         if (keyEvent == RIGHT_KEY_SHORT)
         {
             clearRightBtn();
-            showInitScrn2("<风速>");  // 显示捕获指导
+            showInitScrn2("<风速>");        // 显示捕获指导
             ac.startCapture();              // 开始红外信号捕获
             l2State = STEP3;
         }
         if (keyEvent == LEFT_KEY_SHORT)
         {
-            mainState = START;              // 取消并返回开始
+            mainState = START;        // 取消并返回开始
             l2State = STEP1;
         }
         keyEvent = NO_KEY;
         break;
-        
+
     case STEP3:
         // 等待红外信号捕获并处理结果
         if (ac.signalCaptured())
         {
             ac.stopCapture();
-            if (ac.init())                  // 尝试用捕获的信号初始化
+            if (ac.init())        // 使用采集到的数据进行配对
             {
-				initOK = true;
                 matchCnt = 0;
-                extra = ac.extraSample();   // 检查是否需要额外采样信号
-                if (extra > 0)              // 需要额外捕获
-                {
-                    if (extra > 3) extra = 3;  // 防止任何原因extra值超过3
-                    showInitScrn3(EXTRA_KEY[extra - 1]);  // 显示下一步要按什么按钮
-                    drawOKButton();
-                    l2State = STEP7;
-                }
-                else                        // 初始化成功且无需额外采样
+                extra = ac.extraSample();        // 检查是否需要额外采样
+                if (extra == 0)                  // 无需额外采样
                 {
                     saveInitInfo();
                     showInitOKMsg();
-					retState = TEMP_CTL;
+                    retState = TEMP_CTL;
                     l2State = STEP6;
+                }
+                else if ((extra > 0) && (extra < 4))        // 有按键需要额外采样
+                {
+                    showInitScrn3(EXTRA_KEY[extra - 1]);        // 显示需要采样的按键
+                    drawOKButton();
+                    l2State = STEP7;
+                }
+                else
+                {
+                    showInitFailMsg();        // 配对失败
+                    l2State = STEP5;
                 }
             }
             else
             {
-				initOK = false;
-                showInitFailMsg();          // 初始化失败
+                showInitFailMsg();        // 配对失败
                 l2State = STEP5;
             }
         }
         if (keyEvent == LEFT_KEY_SHORT)
         {
-            mainState = START;              // 取消并返回开始
+            mainState = START;        // 取消并返回开始
             l2State = STEP1;
         }
         keyEvent = NO_KEY;
         break;
-        
+
     case STEP4:
         // 为完整的空调控制捕获额外的红外信号
-        if (ac.signalCaptured((bc7215DataVarPkt_t*)&sampleData[msgCnt], &sampleFormat[msgCnt]))
+        if (ac.signalCaptured())
         {
-            if (msgCnt < 3) msgCnt++;
-            idleCntr = 0;
-            if (extra < 3)					// 如果extra<3，仅需采集1次指定按键
-            {
-                ac.stopCapture();
-                ac.saveExtra(sampleData[0], sampleFormat[0]);
-                saveInitInfo();
-                showInitOKMsg();
-				retState = TEMP_CTL;
-                l2State = STEP6;
-            }
-        }
-        else
-        {
-            // 如果没有检测到更多信号，处理超时
-            if ((msgCnt != 0) && (!ac.isBusy()))		// 开始采样后，计时信号的空闲时间
-            {
-                idleCntr += interval;
-                if (idleCntr >= 200)        // 空闲超过200ms，认为采样结束
-                {
-                    ac.stopCapture();
-                    if (ac.init(msgCnt, sampleData, sampleFormat))	// 使用采样到的所有信号初始化
-                    {
-						initOK = true;
-                        matchCnt = 0;
-                        saveInitInfo();
-                        showInitOKMsg();
-                    }
-                    else
-                    {
-						initOK = false;
-                        showInitFailMsg();
-                    }
-                    retState = START;
-                    l2State = STEP6;
-                }
-            }
+            ac.stopCapture();
+            ac.saveExtra();
+            saveInitInfo();
+            showInitOKMsg();
+            retState = TEMP_CTL;
+            l2State = STEP6;
         }
         if (keyEvent == LEFT_KEY_SHORT)
         {
@@ -586,34 +518,34 @@ void initAC()
         }
         keyEvent = NO_KEY;
         break;
-        
+
     case STEP5:
         // 处理初始化失败
         if (keyEvent == RIGHT_KEY_SHORT)
         {
-            showInitScrn1();               // 重试初始化
+            showInitScrn1();        // 重试初始化
             l2State = STEP2;
         }
         else if (keyEvent == LEFT_KEY_SHORT)
         {
-            mainState = START;             // 返回开始
+            mainState = START;        // 返回开始
             l2State = STEP1;
         }
         keyEvent = NO_KEY;
         break;
-        
+
     case STEP6:
         // 等待确定按钮继续
         if (keyEvent == RIGHT_KEY_SHORT)
         {
-			acDispUpdate();
-			drawTempButtons();
+            acDispUpdate();
+            drawTempButtons();
             l2State = STEP1;
             mainState = retState;
         }
         keyEvent = NO_KEY;
         break;
-        
+
     case STEP7:
         // 等待确定按钮然后开始额外捕获
         if (keyEvent == RIGHT_KEY_SHORT)
@@ -650,13 +582,13 @@ void tempCtrl()
             {
                 temp--;
             }
-            remoteBtn = 0;                 // 温度-按钮
-			irSending = true;
-            acDispUpdate();                // 更新显示
-            acStatUpdate();                // 发送红外命令和MQTT更新
+            remoteBtn = 0;        // 温度-按钮
+            irSending = true;
+            acDispUpdate();        // 更新显示
+            acStatUpdate();        // 发送红外命令和MQTT更新
         }
         break;
-        
+
     case RIGHT_KEY_SHORT:
         // 提高温度（仅适用于自动、制冷、制热模式）
         if (mode <= 2)
@@ -665,32 +597,32 @@ void tempCtrl()
             {
                 temp++;
             }
-            remoteBtn = 1;                 // 温度+按钮
-			irSending = true;
+            remoteBtn = 1;        // 温度+按钮
+            irSending = true;
             acDispUpdate();
             acStatUpdate();
         }
         break;
-        
+
     case LEFT_KEY_LONG:
         // 更改空调模式
         mode++;
         if (mode >= 5)
         {
             mode = 0;
-            temp = savedTemp;              // 回到自动模式时恢复温度
+            temp = savedTemp;        // 回到自动模式时恢复温度
         }
-        if (mode == 3)                     // 进入除湿模式
+        if (mode == 3)        // 进入除湿模式
         {
-            savedTemp = temp;              // 保存当前温度
-            temp = 16;                     // 除湿模式通常使用固定低温
+            savedTemp = temp;        // 保存当前温度
+            temp = 16;               // 除湿模式通常使用固定低温
         }
-        remoteBtn = 2;                     // 模式按钮
-		irSending = true;
+        remoteBtn = 2;        // 模式按钮
+        irSending = true;
         acDispUpdate();
         acStatUpdate();
         break;
-        
+
     case RIGHT_KEY_LONG:
         // 更改风速
         fan++;
@@ -698,19 +630,19 @@ void tempCtrl()
         {
             fan = 0;
         }
-        remoteBtn = 3;                     // 风速按钮
-		irSending = true;
+        remoteBtn = 3;        // 风速按钮
+        irSending = true;
         acDispUpdate();
         acStatUpdate();
         break;
-        
+
     case BOTH_KEY_SHORT:
         // 切换到电源开关控制
         mainState = ON_OFF_CTL;
         clearCentralArea();
         drawOnOffButtons();
         break;
-        
+
     case BOTH_KEY_LONG:
         // 进入主菜单
         mainState = MENU_MAIN;
@@ -730,15 +662,15 @@ void tempCtrl()
  */
 void acDispUpdate()
 {
-	if (irSending)
-	{
-    	drawIrBadge(COLOR_ACTIVE_BADGE);       // 显示红外活动
-	}
+    if (irSending)
+    {
+        drawIrBadge(COLOR_ACTIVE_BADGE);        // 显示红外活动
+    }
     if (mqttCmd)
     {
-        drawMqttBadge(COLOR_ACTIVE_BADGE); // 如果命令来自MQTT显示MQTT活动
+        drawMqttBadge(COLOR_ACTIVE_BADGE);        // 如果命令来自MQTT显示MQTT活动
     }
-    
+
     // 更新温度显示（除湿和送风模式隐藏）
     if (mode < 3)
     {
@@ -746,11 +678,11 @@ void acDispUpdate()
     }
     else
     {
-        drawBigNumber("    ");             // 除湿和送风模式清除温度显示
+        drawBigNumber("    ");        // 除湿和送风模式清除温度显示
     }
     drawModeLabel(mode);
     drawFanLabel(fan);
-	timerMs = 0;
+    startTime = millis();
     mainState = IR_SENDING;
     retState = TEMP_CTL;
 }
@@ -760,7 +692,7 @@ void acDispUpdate()
  */
 void acStatUpdate()
 {
-    ac.setTo(temp, mode, fan, remoteBtn);  // 向空调发送红外命令
+    ac.setTo(temp, mode, fan, remoteBtn);        // 向空调发送红外命令
     if (mqttState == CONNECTED)
     {
         // 发布当前状态到MQTT
@@ -778,38 +710,38 @@ void onOffCtrl()
     {
     case LEFT_KEY_SHORT:
         // 电源开
-		irSending = true;
+        irSending = true;
         acDispUpdate();
-        ac.on();
         if (mqttState == CONNECTED)
         {
-            mqtt.publish(REPORT_TOPIC, "开机");
+            mqtt.publish(REPORT_TOPIC, "On");
         }
-		timerMs = 0;
+        startTime = millis();
+        ac.on();
         mainState = IR_SENDING;
-        retState = TEMP_CTL;               // 发送后返回温度控制
+        retState = TEMP_CTL;        // 发送后返回温度控制
         break;
-        
+
     case RIGHT_KEY_SHORT:
         // 电源关
-		irSending = true;
+        irSending = true;
         drawIrBadge(COLOR_ACTIVE_BADGE);
-        ac.off();
         if (mqttState == CONNECTED)
         {
-            mqtt.publish(REPORT_TOPIC, "关机");
+            mqtt.publish(REPORT_TOPIC, "Off");
         }
-		timerMs = 0;
+        startTime = millis();
+        ac.off();
         mainState = IR_SENDING;
-        retState = ON_OFF_CTL;             // 发送后保持在电源控制
+        retState = ON_OFF_CTL;        // 发送后保持在电源控制
         break;
-        
+
     case BOTH_KEY_SHORT:
         // 返回温度控制
         acDispUpdate();
         drawTempButtons();
         break;
-        
+
     case BOTH_KEY_LONG:
         // 进入主菜单
         mainState = MENU_MAIN;
@@ -841,7 +773,7 @@ void mainMenu()
         }
         updateMenu(newIndex);
         break;
-        
+
     case RIGHT_KEY_SHORT:
         // 选择菜单项
         switch (currentMenuSelection)
@@ -860,7 +792,11 @@ void mainMenu()
             currentMenuSelection = 0;
             updateMenu(0);
             break;
-        case 3:        // 退出
+        case 3:        // 红外信号解析
+            mainState = IR_PARSING;
+            l2State = STEP1;
+            break;
+        case 4:        // 退出菜单
             mainState = START;
             l2State = STEP1;
             break;
@@ -891,7 +827,7 @@ void predefMenu()
         }
         updateMenu(newIndex);
         break;
-        
+
     case RIGHT_KEY_SHORT:
         // 选择预定义型号
         if (ac.initPredef(currentMenuSelection))
@@ -912,13 +848,109 @@ void predefMenu()
         else
         {
             clearCentralArea();
-            mainState = MENU_MAIN;         // 如果失败返回主菜单
+            mainState = MENU_MAIN;        // 如果失败返回主菜单
         }
         break;
     default:
         break;
     }
     keyEvent = NO_KEY;
+}
+
+/*
+ * 解析红外信号(空调指令)
+ */
+void irParsing()
+{
+    int T, M, F, P;        // 解析结果
+
+    switch (l2State)
+    {
+    case STEP1:
+        if (ac.initOK)
+        {
+            showParsingStartScrn();
+        }
+        else
+        {
+            showNoInitScrn();        // 尚未配对空调
+            retState = START;
+        }
+        clearLeftBtn();
+        drawOKButton();
+        l2State = STEP2;
+        break;
+
+    case STEP2:
+        // 等待按OK键
+        if (keyEvent == RIGHT_KEY_SHORT)
+        {
+            showParsingTemplate();
+            clearRightBtn();
+            drawEscButton();
+            retState = START;
+            l2State = STEP3;
+            ac.startCapture();
+        }
+        keyEvent = NO_KEY;
+        break;
+    case STEP3:
+        // 显示解析结果，按ESC退出
+        if (ac.signalCaptured())
+        {
+            ac.stopCapture();
+            Serial.print("Sample Count=");
+            Serial.println(ac.sampleCount);
+            T = -1;
+            M = -1;
+            F = -1;
+            P = -1;
+            if (ac.parse(T, M, F, P))
+            {
+                if ((T < 16) || (T > 30))
+				{
+                    T = -1;
+				}
+                if ((M < 0) || (M > 4))
+                {
+                    M = 5;
+                }
+                if ((F < 0) || (F > 3))
+                {
+                    F = 4;
+                }
+                if ((P < 0) || (P > 2))
+                {
+                    P = 3;
+                }
+                drawParsingResult(T, M, F, P);
+                if (mqttState == CONNECTED)
+                {
+                    // 发布解析结果到 MQTT
+                    String s = "Temp=" + String(T) + ", Mode=" + MODES[M] + ", Fan=" + FANSPEED[F]
+                        + ", Power=" + PWR_STATUS[P];
+                    mqtt.publish(REPORT_TOPIC, s.c_str());
+                }
+            }
+            else
+            {
+                Serial.println("Parsing failed");
+                drawParsingResult(-1, -1, -1, -1);
+            }
+            ac.startCapture();
+        }
+        if (keyEvent == LEFT_KEY_SHORT)
+        {
+            ac.stopCapture();
+            clearCentralArea();
+            mainState = retState;
+        }
+        keyEvent = NO_KEY;
+        break;
+
+    default:
+        break;
+    }
 }
 
 /*
@@ -929,9 +961,9 @@ void findNext()
     switch (l2State)
     {
     case STEP1:
-        if (initOK)
+        if (ac.initOK)
         {
-            if (ac.matchNext())            // 尝试查找下一个匹配协议
+            if (ac.matchNext())        // 尝试查找下一个匹配协议
             {
                 matchCnt++;
                 // 保存新的匹配计数
@@ -950,18 +982,19 @@ void findNext()
         }
         else
         {
-            showNoInitScrn();              // 空调未初始化
+            showNoInitScrn();        // 空调未初始化
             retState = START;
         }
         clearLeftBtn();
         drawOKButton();
         l2State = STEP2;
         break;
-        
+
     case STEP2:
         // 等待确定按钮
         if (keyEvent == RIGHT_KEY_SHORT)
         {
+            drawTempButtons();
             l2State = STEP1;
             mainState = retState;
         }
@@ -983,7 +1016,7 @@ void saveInitInfo()
     savedData.putBytes("format", formatPkt, sizeof(bc7215FormatPkt_t));
     savedData.putBytes("data", dataPkt, sizeof(bc7215DataMaxPkt_t));
     savedData.putBytes("matchIndex", &matchCnt, sizeof(matchCnt));
-    
+
     // 如果必要，保存额外的红外数据和格式信息
     if (ac.extraSample())
     {
@@ -999,13 +1032,13 @@ void saveInitInfo()
 void flashNoConn()
 {
     static bool showMessage = true;
-    
-    if (timerMs >= 1000)
+
+    if (millis() - startTime >= 500)
     {
-        timerMs = 0;
-        showMessage = !showMessage;  // 切换显示状态
+        showMessage = !showMessage;        // 切换显示状态
+        startTime = millis();
     }
-    
+
     if (showMessage)
     {
         // Show error message
@@ -1017,10 +1050,8 @@ void flashNoConn()
     }
     else
     {
-        clearCentralArea();  // 清除消息以产生闪烁效果
+        clearCentralArea();        // 清除消息以产生闪烁效果
     }
-    
-    timerMs += interval;
 }
 
 /*
@@ -1028,41 +1059,42 @@ void flashNoConn()
  */
 void wifiConnect()
 {
-    static int connTimer;
-    static int progressPercent = 0;
-    
+    static int  connTimes = 0;
+    static bool badgeIsOn = false;
+
     switch (wifiState)
     {
     case CONNECTING:
-        // 显示连接进度
-        progressPercent = (connTimer * 100) / 800;  // 计算进度百分比
-        if (progressPercent > 100) progressPercent = 100;
-        
-        // 使用进度条显示连接状态
-        if (connTimer == 0)
+        if (millis() - wifiStartTime >= 300)
         {
-            drawWiFiBadge(COLOR_ONLINE_BADGE);  // 显示标识
+            wifiStartTime = millis();
+            if (badgeIsOn)
+            {
+                badgeIsOn = false;
+                drawWiFiBadge(COLOR_BG);        // 隐藏标识（使用背景色）
+            }
+            else
+            {
+                badgeIsOn = true;
+                drawWiFiBadge(COLOR_ONLINE_BADGE);        // 显示标识
+            }
+            connTimes++;
+            if (connTimes >= 30)        // 9s
+            {
+                wifiState = UNAVAILABLE;
+                Serial.println("WiFi不可用");
+            }
         }
-        else if (connTimer == 400)
-        {
-            drawWiFiBadge(COLOR_BG);       // 隐藏标识（使用背景色）
-        }
-        connTimer += interval;
-        if (connTimer >= 800)
-        {
-            connTimer = 0;
-        }
-        
+
         // 检查连接是否建立
         if (WiFi.status() == WL_CONNECTED)
         {
             drawWiFiBadge(COLOR_ONLINE_BADGE);
             wifiState = CONNECTED;
             Serial.println("WiFi已连接");
-            progressPercent = 0;  // 重置进度
         }
         break;
-        
+
     case CONNECTED:
         // 监控连接状态
         if (WiFi.status() != WL_CONNECTED)
@@ -1071,9 +1103,12 @@ void wifiConnect()
             wifiState = CONNECTING;
             drawMqttBadge(COLOR_BG);
             mqttState = WAITING;        // 连接丢失，尝试重连
-            connTimer = 0;
+            wifiStartTime = millis();
             Serial.println("WiFi已断开");
         }
+        break;
+    case UNAVAILABLE:
+    default:
         break;
     }
 }
@@ -1090,41 +1125,43 @@ void mqttConnect()
         // 在尝试MQTT之前等待WiFi连接
         if (wifiState == CONNECTED)
         {
+            {
+                mqttState = CONNECTING;        // 开始连接尝试
+                mqttStartTime = millis();
+            }
+        }
+        if (wifiState == UNAVAILABLE)
+        {
+            mqttState = UNAVAILABLE;
+        }
+        break;
+
+    case CONNECTING:
+        drawMqttBadge(COLOR_BG);        // 隐藏标识
+        Serial.println("MQTT connection 1st attempt");
+        if (mqtt.connect(MQTT_CLIENT_ID, NULL, NULL, MQTT_LWT, 0, true, "离线"))
+        {
+            mqttOnlineAction();        // 连接成功
+            mqttState = CONNECTED;
+        }
+        else
+        {
+            mqttStartTime = millis();
+            while (millis() - mqttStartTime < 2000)
+                ;        // 等待2s重试一次
+            Serial.println("MQTT connection 2nd attempt");
             if (mqtt.connect(MQTT_CLIENT_ID, NULL, NULL, MQTT_LWT, 0, true, "离线"))
             {
                 mqttOnlineAction();        // 连接成功
+                mqttState = CONNECTED;
             }
-            else
-            {
-                mqttState = CONNECTING;    // 开始连接尝试
-            }
+			else
+			{
+        		mqttState = UNAVAILABLE;
+			}
         }
         break;
-        
-    case CONNECTING:
-        // 连接时闪烁MQTT标识
-        if (connTimer == 0)
-        {
-            drawMqttBadge(COLOR_BG);       // 隐藏标识
-        }
-        else if (connTimer == 500)
-        {
-            drawMqttBadge(COLOR_ONLINE_BADGE);  // 显示标识
-        }
-        connTimer += interval;
-        if (connTimer >= 1000)
-        {
-            connTimer = 0;
-            // 重试连接
-            mqtt.connect(MQTT_CLIENT_ID, NULL, NULL, MQTT_LWT, 0, true, "离线");
-        }
-        
-        if (mqtt.connected())
-        {
-            mqttOnlineAction();            // 连接成功
-        }
-        break;
-        
+
     case CONNECTED:
         // 监控连接并处理消息
         if (!mqtt.connected())
@@ -1135,8 +1172,11 @@ void mqttConnect()
         }
         else
         {
-            mqtt.loop();                   // 处理传入的MQTT消息
+            mqtt.loop();        // 处理传入的MQTT消息
         }
+        break;
+    case UNAVAILABLE:
+    default:
         break;
     }
 }
@@ -1147,14 +1187,14 @@ void mqttConnect()
 void mqttOnlineAction()
 {
     Serial.println("MQTT已连接");
-    mqtt.publish(MQTT_LWT, "在线", true);    // 发布在线状态
+    mqtt.publish(MQTT_LWT, "在线", true);        // 发布在线状态
 
     // 订阅控制主题
     mqtt.subscribe(TEMP_TOPIC);
     mqtt.subscribe(MODE_TOPIC);
     mqtt.subscribe(FAN_TOPIC);
     mqtt.subscribe(POWER_TOPIC);
-    
+
     mqttState = CONNECTED;
     drawMqttBadge(COLOR_ONLINE_BADGE);
 }
@@ -1166,13 +1206,13 @@ void mqttOnlineAction()
 void processMqtt(char* topic, byte* payload, unsigned int length)
 {
     Serial.println("MQTT主题: " + String(topic));
-    
+
     // 将载荷转换为以null结尾的字符串
     char val[length + 1];
     memcpy(val, payload, length);
     val[length] = '\0';
     int value = atoi(val);
-    
+
     if (strcmp(topic, TEMP_TOPIC) == 0)        // 温度控制
     {
         if ((value >= 16) && (value <= 30))
@@ -1180,8 +1220,8 @@ void processMqtt(char* topic, byte* payload, unsigned int length)
             temp = value;
             Serial.print("新温度 = ");
             Serial.println(value);
-			irSending = true;
-            mqttCmd = true;                    // 标记为MQTT命令
+            irSending = true;
+            mqttCmd = true;        // 标记为MQTT命令
             acDispUpdate();
             acStatUpdate();
         }
@@ -1190,14 +1230,14 @@ void processMqtt(char* topic, byte* payload, unsigned int length)
             Serial.println("无效的温度值");
         }
     }
-    else if (strcmp(topic, MODE_TOPIC) == 0)   // 模式控制
+    else if (strcmp(topic, MODE_TOPIC) == 0)        // 模式控制
     {
         if ((value >= 0) && (value <= 4))
         {
             mode = value;
             Serial.print("新模式 = ");
             Serial.println(MODES[mode]);
-			irSending = true;
+            irSending = true;
             mqttCmd = true;
             acDispUpdate();
             acStatUpdate();
@@ -1207,14 +1247,14 @@ void processMqtt(char* topic, byte* payload, unsigned int length)
             Serial.println("无效的模式值");
         }
     }
-    else if (strcmp(topic, FAN_TOPIC) == 0)    // 风速控制
+    else if (strcmp(topic, FAN_TOPIC) == 0)        // 风速控制
     {
         if ((value >= 0) && (value <= 3))
         {
             fan = value;
             Serial.print("新风速 = ");
             Serial.println(FANSPEED[fan]);
-			irSending = true;
+            irSending = true;
             mqttCmd = true;
             acDispUpdate();
             acStatUpdate();
@@ -1224,14 +1264,14 @@ void processMqtt(char* topic, byte* payload, unsigned int length)
             Serial.println("无效的风速值");
         }
     }
-    else if (strcmp(topic, POWER_TOPIC) == 0)  // 电源控制
+    else if (strcmp(topic, POWER_TOPIC) == 0)        // 电源控制
     {
         if ((value >= 0) && (value <= 1))
         {
-			irSending = true;
+            irSending = true;
             drawIrBadge(COLOR_ACTIVE_BADGE);
             mqttCmd = true;
-            if (value == 1)                    // 电源开
+            if (value == 1)        // 电源开
             {
                 Serial.println("开机");
                 acDispUpdate();
@@ -1240,12 +1280,12 @@ void processMqtt(char* topic, byte* payload, unsigned int length)
                 {
                     mqtt.publish(REPORT_TOPIC, "开机");
                 }
+                startTime = millis();
                 ac.on();
-				timerMs = 0;
                 mainState = IR_SENDING;
                 retState = TEMP_CTL;
             }
-            if (value == 0)                    // 电源关
+            if (value == 0)        // 电源关
             {
                 Serial.println("关机");
                 if (mqttState == CONNECTED)
@@ -1254,8 +1294,8 @@ void processMqtt(char* topic, byte* payload, unsigned int length)
                 }
                 clearCentralArea();
                 drawOnOffButtons();
+                startTime = millis();
                 ac.off();
-				timerMs = 0;
                 mainState = IR_SENDING;
                 retState = ON_OFF_CTL;
             }
@@ -1296,13 +1336,13 @@ void updateKeyStatus()
             keyTimer = 0;
         }
         break;
-        
+
     case ONE_PRESSED:
         // 单个按钮按下 - 检查长按或第二个按钮
         if ((leftPressed && previousLeft) || (rightPressed && previousRight))
         {
             keyTimer += interval;
-            if (keyTimer > 2000)           // 长按阈值2秒
+            if (keyTimer > 2000)        // 长按阈值2秒
             {
                 keyboardState = ONE_LONG_PRESSED;
                 if (leftPressed)
@@ -1317,9 +1357,9 @@ void updateKeyStatus()
         }
         else if ((leftPressed != previousLeft) || (rightPressed != previousRight))
         {
-            keyTimer = 0;                  // 按钮变化时重置定时器
+            keyTimer = 0;        // 按钮变化时重置定时器
         }
-        
+
         if (leftPressed && rightPressed)
         {
             keyTimer = 0;
@@ -1339,7 +1379,7 @@ void updateKeyStatus()
             }
         }
         break;
-        
+
     case BOTH_PRESSED:
         // 两个按钮都按下 - 检查长按
         if (leftPressed && rightPressed)
@@ -1366,7 +1406,7 @@ void updateKeyStatus()
             }
         }
         break;
-        
+
     case ONE_RELEASED:
         // 一个按钮释放而另一个仍按下
         if (leftPressed && rightPressed)
@@ -1379,7 +1419,7 @@ void updateKeyStatus()
             keyboardState = BOTH_RELEASED;
         }
         break;
-        
+
     case ONE_LONG_PRESSED:
         // 检测到长按 - 等待释放
         if (!leftPressed && !rightPressed)
@@ -1396,7 +1436,7 @@ void updateKeyStatus()
 
 /***********************************************************************************
  * 显示和用户界面函数
- * 
+ *
  * 这些函数处理所有显示操作包括：
  * - 顶部状态标识（WiFi、MQTT、红外）
  * - 主数字显示
@@ -1422,26 +1462,23 @@ void computeTopBadgesLayout()
 void drawBadge(int xStart, uint16_t bg, const char* text)
 {
     tft.fillRoundRect(xStart, BADGE_Y, BADGE_WIDTH, BADGE_HEIGHT, BADGE_RADIUS, bg);
-	tft.unloadFont();
+    tft.unloadFont();
     tft.setTextFont(BADGE_FONT);
     tft.setTextSize(BADGE_SIZE);
     tft.setTextColor(COLOR_BADGE_FG);
-    
+
     // 在标识中居中文字
     int fh = tft.fontHeight();
     int tx = xStart + BADGE_WIDTH / 2;
     int ty = BADGE_Y + (BADGE_HEIGHT - fh) / 2;
     tft.drawString(text, tx, ty);
-	tft.loadFont(Dengl16);
+    tft.loadFont(Dengl16);
 }
 
 /*
  * 清除主数字显示区域
  */
-void clearNumberArea() 
-{ 
-    tft.fillRect(0, L.numberAreaY, SCREEN_W, L.numberAreaH, COLOR_BG); 
-}
+void clearNumberArea() { tft.fillRect(0, L.numberAreaY, SCREEN_W, L.numberAreaH, COLOR_BG); }
 
 /*
  * 在屏幕中央显示大号温度数字
@@ -1449,12 +1486,12 @@ void clearNumberArea()
 void drawBigNumber(const String& value)
 {
     clearNumberArea();
-	tft.unloadFont();
-    tft.setTextFont(8);                    // 大数字所用字体 
+    tft.unloadFont();
+    tft.setTextFont(8);        // 大数字所用字体
     tft.setTextSize(1);
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
     tft.drawString(value, SCREEN_W / 2, L.numberY);
-	tft.loadFont(Dengl16);
+    tft.loadFont(Dengl16);
 }
 
 /*
@@ -1463,13 +1500,13 @@ void drawBigNumber(const String& value)
 void drawModeLabel(int mode)
 {
     tft.setTextDatum(TL_DATUM);
-//    tft.setTextFont(2);
-//    tft.setTextSize(1);
+    //    tft.setTextFont(2);
+    //    tft.setTextSize(1);
     tft.setTextColor(COLOR_BG, COLOR_LABEL_BG);
     int y = L.middleLabelY;
-	int p = L.middleLabelPad;
+    int p = L.middleLabelPad;
     tft.fillRect(0, y - 6, SCREEN_W / 2, tft.fontHeight() + 8, COLOR_BG);
-    tft.fillRect(0, y - 6, tft.textWidth(MODES[mode])+2*p, tft.fontHeight() + 8, COLOR_LABEL_BG);
+    tft.fillRect(0, y - 6, tft.textWidth(MODES[mode]) + 2 * p, tft.fontHeight() + 8, COLOR_LABEL_BG);
     tft.drawString(MODES[mode], p, y);
     tft.setTextDatum(TC_DATUM);
 }
@@ -1480,13 +1517,14 @@ void drawModeLabel(int mode)
 void drawFanLabel(int fan)
 {
     tft.setTextDatum(TR_DATUM);
-//    tft.setTextFont(2);
-//    tft.setTextSize(1);
+    //    tft.setTextFont(2);
+    //    tft.setTextSize(1);
     tft.setTextColor(COLOR_BG, COLOR_LABEL_BG);
     int y = L.middleLabelY;
-	int p = L.middleLabelPad;
+    int p = L.middleLabelPad;
     tft.fillRect(SCREEN_W / 2, y - 6, SCREEN_W / 2, tft.fontHeight() + 8, COLOR_BG);
-    tft.fillRect(SCREEN_W -tft.textWidth(FANSPEED[fan])-2*p, y - 6, tft.textWidth(FANSPEED[fan])+2*p, tft.fontHeight() + 8, COLOR_LABEL_BG);
+    tft.fillRect(SCREEN_W - tft.textWidth(FANSPEED[fan]) - 2 * p, y - 6, tft.textWidth(FANSPEED[fan]) + 2 * p,
+        tft.fontHeight() + 8, COLOR_LABEL_BG);
     tft.drawString(FANSPEED[fan], SCREEN_W - p, y);
     tft.setTextDatum(TC_DATUM);
 }
@@ -1494,36 +1532,33 @@ void drawFanLabel(int fan)
 /*
  * 清除中央显示区域（标识和按钮之间）
  */
-void clearCentralArea() 
-{ 
-    tft.fillRect(0, L.numberAreaY, SCREEN_W, 177 - L.numberAreaY, COLOR_BG); 
-}
+void clearCentralArea() { tft.fillRect(0, L.numberAreaY - 5, SCREEN_W, 182 - L.numberAreaY, COLOR_BG); }
 
 /*
  * 绘制温度控制按钮（-和+带模式/风速标签）
  */
 void drawTempButtons()
 {
-	// 左按钮 (TEMP -)
+    // 左按钮 (TEMP -)
     tft.fillRoundRect(4, 178, 61, 58, 8, COLOR_ACTION_BG);
     // 右按钮 (TEMP +)
     tft.fillRoundRect(70, 178, 61, 58, 8, COLOR_ACTION_BG);
-    
+
     // 按钮上文字
-//    tft.setTextFont(2);
-//    tft.setTextSize(1);
+    //    tft.setTextFont(2);
+    //    tft.setTextSize(1);
     tft.setTextColor(COLOR_ACTION_FG, COLOR_ACTION_BG);
-    tft.drawString("模式", 34, 216);       // 长按左键改变模式
-    tft.drawString("风速", 100, 216);      // 长按右键改变风速
-    
+    tft.drawString("模式", 34, 216);         // 长按左键改变模式
+    tft.drawString("风速", 100, 216);        // 长按右键改变风速
+
     // 按钮上+/-符号
-	tft.unloadFont();
+    tft.unloadFont();
     tft.setTextFont(4);
     tft.setTextSize(3);
     tft.setTextColor(COLOR_ACTION_FG);
-    tft.drawString("-", 34, 160);          // 短按左键温度降低
-    tft.drawString("+", 100, 160);         // 短按右键温度升高
-	tft.loadFont(Dengl16);
+    tft.drawString("-", 34, 160);         // 短按左键温度降低
+    tft.drawString("+", 100, 160);        // 短按右键温度升高
+    tft.loadFont(Dengl16);
 }
 
 /*
@@ -1541,12 +1576,12 @@ void drawMenuButtons()
 void drawOKButton()
 {
     tft.fillRoundRect(70, 178, 61, 58, 8, COLOR_ACTION_BG);
-	tft.unloadFont();
+    tft.unloadFont();
     tft.setTextFont(4);
     tft.setTextSize(1);
     tft.setTextColor(COLOR_ACTION_FG);
     tft.drawString("OK", 100, 180 + (58 - tft.fontHeight()) / 2);
-	tft.loadFont(Dengl16);
+    tft.loadFont(Dengl16);
 }
 
 /*
@@ -1555,12 +1590,12 @@ void drawOKButton()
 void drawEscButton()
 {
     tft.fillRoundRect(4, 178, 61, 58, 8, COLOR_ACTION_BG);
-	tft.unloadFont();
+    tft.unloadFont();
     tft.setTextFont(4);
     tft.setTextSize(1);
     tft.setTextColor(COLOR_ACTION_FG);
     tft.drawString("ESC", 34, 180 + (58 - tft.fontHeight()) / 2);
-	tft.loadFont(Dengl16);
+    tft.loadFont(Dengl16);
 }
 
 /*
@@ -1569,12 +1604,12 @@ void drawEscButton()
 void drawSELButton()
 {
     tft.fillRoundRect(4, 178, 61, 58, 8, COLOR_ACTION_BG);
-	tft.unloadFont();
+    tft.unloadFont();
     tft.setTextFont(4);
     tft.setTextSize(1);
     tft.setTextColor(COLOR_ACTION_FG);
     tft.drawString("SEL", 34, 180 + (58 - tft.fontHeight()) / 2);
-	tft.loadFont(Dengl16);
+    tft.loadFont(Dengl16);
 }
 
 /*
@@ -1584,30 +1619,24 @@ void drawOnOffButtons()
 {
     tft.fillRoundRect(4, 178, 61, 58, 8, COLOR_ACTION_BG);
     tft.fillRoundRect(70, 178, 61, 58, 8, COLOR_ACTION_BG);
-	tft.unloadFont();
+    tft.unloadFont();
     tft.setTextFont(4);
     tft.setTextSize(1);
     tft.setTextColor(COLOR_ACTION_FG);
     tft.drawString("ON", 34, 180 + (58 - tft.fontHeight()) / 2);
     tft.drawString("OFF", 100, 180 + (58 - tft.fontHeight()) / 2);
-	tft.loadFont(Dengl16);
+    tft.loadFont(Dengl16);
 }
 
 /*
  * 清除左按钮区域
  */
-void clearLeftBtn()
-{
-    tft.fillRoundRect(4, 178, 61, 58, 8, COLOR_BG);
-}
+void clearLeftBtn() { tft.fillRoundRect(4, 178, 61, 58, 8, COLOR_BG); }
 
 /*
  * 清除右按钮区域
  */
-void clearRightBtn()
-{
-    tft.fillRoundRect(70, 178, 61, 58, 8, COLOR_BG);
-}
+void clearRightBtn() { tft.fillRoundRect(70, 178, 61, 58, 8, COLOR_BG); }
 
 /*
  * 显示带项目列表的菜单
@@ -1617,26 +1646,27 @@ void showMenu(const char* items[], int cnt)
     menuItems = items;
     clearCentralArea();
     tft.setTextDatum(TL_DATUM);
-//    tft.setTextFont(2);
-//    tft.setTextSize(1);
+    //    tft.setTextFont(2);
+    //    tft.setTextSize(1);
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
-	tft.setTextWrap(false);
-	int y = L.numberAreaY+tft.fontHeight()+8;
-    tft.drawString("菜单 :", 4, L.numberAreaY+4);
-    
+    tft.setTextWrap(false);
+    int y = L.numberAreaY + tft.fontHeight() + 8;
+    tft.drawString("菜单 :", 4, L.numberAreaY + 4);
+
     // 显示所有菜单项
     for (int i = 0; i < cnt; i++)
     {
         tft.drawString(" " + String(menuItems[i]) + " ", 8, y + i * tft.fontHeight());
     }
     currentMenuSelection = 0;
-    
+
     // 在底部显示库版本
-	tft.unloadFont();
+    tft.unloadFont();
     tft.setTextFont(1);
+    tft.setTextSize(1);
     tft.drawString(String(ac.getLibVer()), 2, 177 - tft.fontHeight());
     tft.setTextDatum(TC_DATUM);
-	tft.loadFont(Dengl16);
+    tft.loadFont(Dengl16);
 }
 
 /*
@@ -1645,22 +1675,21 @@ void showMenu(const char* items[], int cnt)
 void updateMenu(int selected)
 {
     tft.setTextDatum(TL_DATUM);
-//    tft.setTextFont(2);
-//    tft.setTextSize(1);
-    
+    //    tft.setTextFont(2);
+    //    tft.setTextSize(1);
+
     // Clear previous selection
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
-	tft.setTextWrap(false);
-	int y = L.numberAreaY+tft.fontHeight()+8;
-	tft.fillRect(8, y-2+tft.fontHeight()*currentMenuSelection, SCREEN_W-8*2, tft.fontHeight(), COLOR_BG);
-    tft.drawString(" " + String(menuItems[currentMenuSelection]) + " ", 8,
-        y + currentMenuSelection * tft.fontHeight());
-    
+    tft.setTextWrap(false);
+    int y = L.numberAreaY + tft.fontHeight() + 8;
+    tft.fillRect(8, y - 2 + tft.fontHeight() * currentMenuSelection, SCREEN_W - 8 * 2, tft.fontHeight(), COLOR_BG);
+    tft.drawString(" " + String(menuItems[currentMenuSelection]) + " ", 8, y + currentMenuSelection * tft.fontHeight());
+
     // Highlight new selection
     tft.setTextColor(COLOR_TEXT, COLOR_ACTION_BG);
-	tft.fillRect(8, y-2+tft.fontHeight()*selected, SCREEN_W-8*2, tft.fontHeight(), COLOR_ACTION_BG);
+    tft.fillRect(8, y - 2 + tft.fontHeight() * selected, SCREEN_W - 8 * 2, tft.fontHeight(), COLOR_ACTION_BG);
     tft.drawString(" " + String(menuItems[selected]) + " ", 8, y + selected * tft.fontHeight());
-    
+
     currentMenuSelection = selected;
     tft.setTextDatum(TC_DATUM);
 }
@@ -1668,20 +1697,11 @@ void updateMenu(int selected)
 /*
  * 状态标识绘制函数
  */
-void drawIrBadge(uint16_t color) 
-{ 
-    drawBadge(BADGE_WIDTH * 2 + BADGE_GAP * 2 + BADGE_SIDE_MARGIN, color, " IR "); 
-}
+void drawIrBadge(uint16_t color) { drawBadge(BADGE_WIDTH * 2 + BADGE_GAP * 2 + BADGE_SIDE_MARGIN, color, " IR "); }
 
-void drawWiFiBadge(uint16_t color) 
-{ 
-    drawBadge(BADGE_SIDE_MARGIN, color, "WiFi"); 
-}
+void drawWiFiBadge(uint16_t color) { drawBadge(BADGE_SIDE_MARGIN, color, "WiFi"); }
 
-void drawMqttBadge(uint16_t color) 
-{ 
-    drawBadge(BADGE_WIDTH + BADGE_GAP + BADGE_SIDE_MARGIN, color, "MQTT"); 
-}
+void drawMqttBadge(uint16_t color) { drawBadge(BADGE_WIDTH + BADGE_GAP + BADGE_SIDE_MARGIN, color, "MQTT"); }
 
 /*
  * 初始化屏幕函数
@@ -1693,11 +1713,11 @@ void drawMqttBadge(uint16_t color)
 void showInitScrn1()
 {
     clearCentralArea();
-//    tft.setTextFont(2);
-//    tft.setTextSize(1);
+    //    tft.setTextFont(2);
+    //    tft.setTextSize(1);
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
-	int y = L.numberAreaY + 4;
-    tft.drawString(" 采集并初始化", SCREEN_W / 2, y);
+    int y = L.numberAreaY + 4;
+    tft.drawString("  配对空调配", SCREEN_W / 2, y);
     tft.drawString("将遥控器设置为", SCREEN_W / 2, y + tft.fontHeight());
     tft.drawString("制冷模式 25°C", SCREEN_W / 2, y + tft.fontHeight() * 3);
     tft.drawString("准备好后按OK", SCREEN_W / 2, y + tft.fontHeight() * 5);
@@ -1709,10 +1729,10 @@ void showInitScrn1()
 void showInitScrn2(const String& keyText)
 {
     clearCentralArea();
-//    tft.setTextFont(2);
-//    tft.setTextSize(1);
+    //    tft.setTextFont(2);
+    //    tft.setTextSize(1);
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
-	int y = L.numberAreaY + 4;
+    int y = L.numberAreaY + 4;
     tft.drawString("请对准接收器", SCREEN_W / 2, y);
     tft.drawString("按下 ", SCREEN_W / 2, y + tft.fontHeight());
     tft.drawString(keyText, SCREEN_W / 2, y + tft.fontHeight() * 3);
@@ -1726,10 +1746,10 @@ void showInitScrn3(const String& keyText)
 {
     clearCentralArea();
     tft.setTextDatum(TL_DATUM);
-//    tft.setTextFont(2);
-//    tft.setTextSize(1);
+    //    tft.setTextFont(2);
+    //    tft.setTextSize(1);
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
-	int y = L.numberAreaY + 4;
+    int y = L.numberAreaY + 4;
     tft.drawString("还需采集", 4, y);
     tft.drawString(keyText, SCREEN_W / 2 - tft.textWidth(keyText) / 2, y + tft.fontHeight() * 2);
     tft.drawString("按键的信号，", 4, y + tft.fontHeight() * 4);
@@ -1742,11 +1762,11 @@ void showInitScrn3(const String& keyText)
  */
 void showInitScrn4()
 {
-//    tft.setTextFont(2);
-//    tft.setTextSize(1);
+    //    tft.setTextFont(2);
+    //    tft.setTextSize(1);
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
-	int y = L.numberAreaY + 4;
-    tft.drawString("  初始化失败  ", SCREEN_W / 2, y);
+    int y = L.numberAreaY + 4;
+    tft.drawString("  配对失败  ", SCREEN_W / 2, y);
     tft.drawString("请检查遥控器设置", SCREEN_W / 2, y + tft.fontHeight());
     tft.drawString("并再次尝试", SCREEN_W / 2, y + tft.fontHeight() * 2);
 }
@@ -1756,11 +1776,11 @@ void showInitScrn4()
  */
 void showInitScrn5()
 {
-//    tft.setTextFont(2);
-//    tft.setTextSize(1);
+    //    tft.setTextFont(2);
+    //    tft.setTextSize(1);
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
-	int y = L.numberAreaY + 4;
-    tft.drawString("  初始化成功  ", SCREEN_W / 2, y);
+    int y = L.numberAreaY + 4;
+    tft.drawString("  配对成功  ", SCREEN_W / 2, y);
     tft.drawString("可以控制空调了", SCREEN_W / 2, y + tft.fontHeight());
 }
 
@@ -1796,8 +1816,8 @@ void showInitFailMsg()
 void showNextMatchScrn(int8_t matchCnt)
 {
     clearCentralArea();
-//    tft.setTextFont(2);
-//    tft.setTextSize(1);
+    //    tft.setTextFont(2);
+    //    tft.setTextSize(1);
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
     tft.drawString("匹配成功", SCREEN_W / 2, L.numberAreaY);
     tft.drawString("匹配数: " + String(matchCnt), SCREEN_W / 2, L.numberAreaY + tft.fontHeight());
@@ -1810,8 +1830,8 @@ void showNextMatchScrn(int8_t matchCnt)
 void showNextFailScrn()
 {
     clearCentralArea();
-//    tft.setTextFont(2);
-//    tft.setTextSize(1);
+    //    tft.setTextFont(2);
+    //    tft.setTextSize(1);
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
     tft.drawString("匹配失败", SCREEN_W / 2, L.numberAreaY);
     tft.drawString("程序将重启", SCREEN_W / 2, L.numberAreaY + tft.fontHeight());
@@ -1824,10 +1844,79 @@ void showNextFailScrn()
 void showNoInitScrn()
 {
     clearCentralArea();
-//    tft.setTextFont(2);
-//    tft.setTextSize(1);
+    //    tft.setTextFont(2);
+    //    tft.setTextSize(1);
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
     tft.drawString("尚未初始化", SCREEN_W / 2, L.numberAreaY);
-    tft.drawString("初始化后才可使用", SCREEN_W / 2, L.numberAreaY + tft.fontHeight());
+    tft.drawString("配对后才可使用", SCREEN_W / 2, L.numberAreaY + tft.fontHeight());
     tft.drawString("按OK继续", SCREEN_W / 2, L.numberAreaY + tft.fontHeight() * 2);
+}
+
+void showParsingStartScrn()
+{
+    clearCentralArea();
+    tft.setTextFont(2);
+    tft.setTextSize(1);
+    tft.setTextColor(COLOR_TEXT, COLOR_BG);
+    tft.drawString("红外信号解析", SCREEN_W / 2, L.numberAreaY);
+    tft.drawString("即将进入接收模式", SCREEN_W / 2, L.numberAreaY + tft.fontHeight() * 2);
+    tft.drawString("从红外信号中读出", SCREEN_W / 2, L.numberAreaY + tft.fontHeight() * 3);
+    tft.drawString("温度,模式等信息", SCREEN_W / 2, L.numberAreaY + tft.fontHeight() * 4);
+    tft.drawString("按OK继续", SCREEN_W / 2, L.numberAreaY + tft.fontHeight() * 5);
+}
+
+void showParsingTemplate()
+{
+    clearCentralArea();
+    tft.setTextFont(2);
+    tft.setTextSize(1);
+    tft.setTextColor(COLOR_TEXT, COLOR_BG);
+    tft.drawString("解析结果", SCREEN_W / 2, L.numberAreaY);
+    tft.setTextDatum(TL_DATUM);
+    tft.drawString(" 温度- ", 0, L.numberAreaY + tft.fontHeight() * 2);
+    tft.drawString(" 模式- ", 0, L.numberAreaY + tft.fontHeight() * 3);
+    tft.drawString(" 风速- ", 0, L.numberAreaY + tft.fontHeight() * 4);
+    tft.drawString(" 电源- ", 0, L.numberAreaY + tft.fontHeight() * 5);
+    tft.setTextDatum(TC_DATUM);
+}
+
+void drawParsingResult(int8_t temp, int8_t mode, int8_t fan, int8_t power)
+{
+    tft.setTextFont(2);
+    tft.setTextSize(1);
+    tft.setTextDatum(TL_DATUM);
+
+    // 1. 定义布局参数（与 template 保持同步）
+    int h = tft.fontHeight();
+    int labelWidth = tft.textWidth(" 温度- ");        // 以最长标签为准
+    int blockX = labelWidth;                          // 背景块从标签结束后 5 像素开始
+    int blockY = L.numberAreaY + h * 2 - 4;           // 比文字起始线稍微往上一点
+    int blockW = SCREEN_W - blockX;                   // 延伸到屏幕右侧，留 5 像素边距
+    int blockH = h * 4 + 8;                           // 覆盖 4 行文字的高度
+
+    // 2. 绘制统一的参数背景大色块
+    // 这样做的好处是：一次性刷掉旧数据，背景非常整齐
+    tft.fillRect(blockX, blockY, blockW, blockH, COLOR_LABEL_BG);
+
+    // 3. 设置反白文字颜色（文字背景设为透明或同样的底色）
+    tft.setTextColor(COLOR_BG, COLOR_LABEL_BG);
+
+    // 4. 在色块内顺序显示参数
+    // 我们只需要微调 X 偏移（+4）让文字不紧贴色块边缘
+    int drawX = blockX + 4;
+    int startY = L.numberAreaY + h * 2;
+    if ((temp >= 16) && (temp <= 30))
+    {
+        tft.drawNumber(temp, drawX + 8, startY);
+    }
+    else
+    {
+        tft.drawString(" -- ", drawX, startY);
+    }
+    tft.drawString(MODES[mode], drawX, startY + h);
+    tft.drawString(FANSPEED[fan], drawX, startY + h * 2);
+    tft.drawString(PWR_STATUS[power], drawX, startY + h * 3);
+
+    // 恢复对齐
+    tft.setTextDatum(TC_DATUM);
 }

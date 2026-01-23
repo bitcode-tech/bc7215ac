@@ -3,19 +3,22 @@
 BC7215AC::BC7215AC(BC7215& bc7215Chip)
     : bc7215(bc7215Chip)
 {
+	for (int i=0; i<4; i++)
+	{
+		rcvdMessage[i].bitLen = 0;		// bitLen in rcvdMessages are always 0
+	}
     bc7215.setTx();
     initOK = false;
-    sampleReady = false;
 }
 
 void BC7215AC::startCapture()
 {
+	sampleCount = 0;
     bc7215.setRx();
     delay(50);
     bc7215.setRxMode(1);
     bc7215.clrData();
     bc7215.clrFormat();
-    sampleReady = false;
 }
 
 void BC7215AC::stopCapture()
@@ -28,10 +31,16 @@ bool BC7215AC::signalCaptured()
 {
     if (bc7215.formatReady())
     {
-        bc7215.getFormat(rcvdFmt);
-        rcvdStatus = bc7215.getData(rcvdData);
-        sampleReady = true;
-        return true;
+		if (sampleCount < 4)
+		{
+        	bc7215.getFormat(sampleFormat[sampleCount]);
+        	sampleStatus[sampleCount] = bc7215.getData(sampleData[sampleCount]);
+			rcvdMessage[sampleCount].body.msg.fmt = &sampleFormat[sampleCount];
+			rcvdMessage[sampleCount].body.msg.datPkt = reinterpret_cast<const bc7215DataVarPkt_t*>(&sampleData[sampleCount]);
+			sampleCount++;
+		}
+		isCapturing = true;
+		timerStartTime = millis();
     }
     else if (bc7215.dataReady())        // if not receiving Format but only data packet, may need to resend resend Rx
                                         // mode command
@@ -39,32 +48,20 @@ bool BC7215AC::signalCaptured()
         bc7215.setRxMode(1);
         bc7215.clrData();
         bc7215.clrFormat();
+		timerStartTime = millis();
     }
-    return false;
-}
-
-bool BC7215AC::signalCaptured(bc7215DataVarPkt_t* data, bc7215FormatPkt_t* format)
-{
-    if (bc7215.formatReady())
-    {
-        bc7215.getFormat(*format);
-        rcvdStatus = bc7215.getData(data);
-        if (rcvdStatus & 0x40)        // if receiving status has "REV" bit set, reverse every byte of data
-        {
-            for (int i = 0; i < (data->bitLen + 7) / 8; i++)
-            {
-                data->data[i] = ~data->data[i];
-            }
-        }
-        return true;
-    }
-    else if (bc7215.dataReady())        // if not receiving Format but only data packet, may need to resend resend Rx
-                                        // mode command
-    {
-        bc7215.setRxMode(1);
-        bc7215.clrData();
-        bc7215.clrFormat();
-    }
+	if (isCapturing)
+	{
+		if(bc7215.isBusy())
+		{
+			timerStartTime = millis();		// if BC7215 is still busy, reset timer
+		}
+		if (millis() - timerStartTime > 200)	// if idle time is more than 200ms
+		{
+			isCapturing = false;
+			return true;
+		}
+	}
     return false;
 }
 
@@ -84,47 +81,35 @@ void BC7215AC::sendAcCmd(const bc7215DataVarPkt_t* dataPkt)
 
 bool BC7215AC::init()
 {
-    stopCapture();
-    if (sampleReady)
+	initOK = false;
+    if (sampleCount == 1)
     {
-        rcvdMessage[0].bitLen = 0;
-        rcvdMessage[0].body.msg.fmt = &rcvdFmt;
-        rcvdMessage[0].body.msg.datPkt = reinterpret_cast<bc7215DataVarPkt_t*>(&rcvdData);
-        initOK = bc7215_ac_init(rcvdStatus, reinterpret_cast<const bc7215DataVarPkt_t*>(&rcvdMessage[0]));
-        return initOK;
+        initOK = bc7215_ac_init(sampleStatus[0], reinterpret_cast<const bc7215DataVarPkt_t*>(&rcvdMessage[0]));
     }
-    return false;
+	else if (sampleCount > 1)
+	{
+		for (int j=0; j<sampleCount; j++)
+		{
+        	if (sampleStatus[j] & 0x40)        // if receiving status has "REV" bit set, reverse every byte of data
+        	{
+        	    for (int i = 0; i < (sampleData[j].bitLen + 7) / 8; i++)
+        	    {
+        	        sampleData[j].data[i] = ~sampleData[j].data[i];
+        	    }
+				sampleStatus[j] &= 0xbf;
+        	}
+		}
+		initOK = bc7215_ac_init2(sampleCount, rcvdMessage, 0);
+	}
+    return initOK;
 }
 
 bool BC7215AC::init(const bc7215DataMaxPkt_t& data, const bc7215FormatPkt_t& format)
 {
-	return init(reinterpret_cast<const bc7215DataVarPkt_t*>(&data), &format);
-}
-
-bool BC7215AC::init(const bc7215DataVarPkt_t* data, const bc7215FormatPkt_t* format)
-{
-    rcvdStatus = format->signature.bits.sig;
-    memcpy(&rcvdData, data, sizeof(bc7215DataMaxPkt_t));
-    memcpy(&rcvdFmt, format, sizeof(bc7215FormatPkt_t));
-    sampleReady = true;
-    return init();
-}
-
-bool BC7215AC::init(uint8_t cnt, const bc7215DataMaxPkt_t data[], const bc7215FormatPkt_t format[])
-{
-    initOK = false;
-    stopCapture();
-    if (cnt < 4)
-    {
-        for (int i = 0; i < cnt; i++)
-        {
-            rcvdMessage[i].bitLen = 0;
-            rcvdMessage[i].body.msg.datPkt = reinterpret_cast<const bc7215DataVarPkt_t*>(&data[i]);
-            rcvdMessage[i].body.msg.fmt = &format[i];
-        }
-        initOK = bc7215_ac_init2(cnt, rcvdMessage, 0);
-    }
-    return initOK;
+    rcvdMessage[0].body.msg.datPkt = reinterpret_cast<const bc7215DataVarPkt_t*>(&data);
+    rcvdMessage[0].body.msg.fmt = &format;
+	initOK = bc7215_ac_init(format.signature.inByte, reinterpret_cast<const bc7215DataVarPkt_t*>(&rcvdMessage[0]));
+	return initOK;
 }
 
 bool BC7215AC::matchNext() 
@@ -135,15 +120,17 @@ bool BC7215AC::matchNext()
 
 uint8_t BC7215AC::extraSample() { return bc7215_ac_need_extra_sample(); }
 
-bool BC7215AC::saveExtra(const bc7215DataVarPkt_t* data, const bc7215FormatPkt_t* format)
+bool BC7215AC::saveExtra()
 {
-    rcvdMessage[0].body.msg.fmt = format;
-    rcvdMessage[0].body.msg.datPkt = data;
-    return bc7215_ac_save_2nd_base(format->signature.bits.sig, &rcvdMessage[0]);
+    rcvdMessage[0].bitLen = 0;
+	rcvdMessage[0].body.msg.fmt = &sampleFormat[0];
+    rcvdMessage[0].body.msg.datPkt = reinterpret_cast<const bc7215DataVarPkt_t*>(&sampleData[0]);
+    return bc7215_ac_save_2nd_base(sampleStatus[0], &rcvdMessage[0]);
 }
 
 bool BC7215AC::saveExtra(const bc7215DataMaxPkt_t& data, const bc7215FormatPkt_t& format)
 {
+	rcvdMessage[0].bitLen = 0;
     rcvdMessage[0].body.msg.fmt = &format;
     rcvdMessage[0].body.msg.datPkt = reinterpret_cast<const bc7215DataVarPkt_t*>(&data);
     return bc7215_ac_save_2nd_base(format.signature.bits.sig, &rcvdMessage[0]);
@@ -171,7 +158,10 @@ bool BC7215AC::initPredef(uint8_t index)
     initOK = false;
     if (index < cntPredef())
     {
-        initOK = init(bc7215_ac_predefined_data(index), bc7215_ac_predefined_fmt(index));
+		memcpy(&sampleData[0], bc7215_ac_predefined_data(index), (bc7215_ac_predefined_data(index)->bitLen+7)/8+2);
+		memcpy(&sampleFormat[0], bc7215_ac_predefined_fmt(index), 33);
+		
+        initOK = init(sampleData[0], sampleFormat[0]);
     }
     return initOK;
 }
@@ -214,6 +204,37 @@ const bc7215DataVarPkt_t* BC7215AC::off()
         return dataPkt;
     }
     return NULL;
+}
+
+bool BC7215AC::parse(int& temp, int& mode, int& fan, int& power)
+{
+	int8_t t, m, f, p;
+	bool result;
+    if (sampleCount == 1)
+    {
+        bc7215_ac_replace_base(sampleStatus[0], reinterpret_cast<const bc7215DataVarPkt_t*>(&sampleData[0]));
+    }
+	else if (sampleCount > 1)
+	{
+		for (int j=0; j<sampleCount; j++)
+		{
+        	if (sampleStatus[j] & 0x40)        // if receiving status has "REV" bit set, reverse every byte of data
+        	{
+        	    for (int i = 0; i < (sampleData[j].bitLen + 7) / 8; i++)
+        	    {
+        	        sampleData[j].data[i] = ~sampleData[j].data[i];
+        	    }
+				sampleStatus[j] &= 0xbf;
+        	}
+		}
+		bc7215_ac_replace_base(sampleCount, reinterpret_cast<const bc7215DataVarPkt_t*>(rcvdMessage));
+	}
+	result = bc7215_ac_parse(&t, &m, &f, &p);
+	temp = t+16;
+	mode = m;
+	fan = f;
+	power = p;
+	return result;
 }
 
 bool BC7215AC::isBusy() { return bc7215.isBusy(); }

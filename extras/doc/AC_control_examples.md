@@ -4,9 +4,10 @@
 
 The **BC7215AC Air Conditioner Remote Control Library** provides 5 example applications, each available in both English and Chinese versions:  
 
-- ESP8266 Serial Monitor (Blocking)  
-- ESP8266 Serial Monitor (Non-blocking)  
+- 
+- ESP8266 Serial Monitor
 - ESP32 Serial Monitor  
+- NANO 33 IoT Serial Monitor
 - ESP32 LCD  
 - ESP32 MQTT  
 
@@ -38,38 +39,48 @@ The examples use ESP8266 NodeMCU boards and ESP32 TTGO T-Display boards. The har
 
 ![](../img/esp32-bc7215_bb.png)
 
+### Arduino NANO33 IoT:
+
+- RX - BC7215A TX
+
+- TX - BC7215A RX
+
+- D3 - BC7215A MOD
+
+- D2 - BC7215A BUSY
+
+- 3.3V - BC7215A VCC
+  
+  ![nano33bc7215bb](file:///home/jianjiao/ongoing/bc7215_ac_lib/source/Arduino/BC7215_AC_Control/extras/img/nano33-bc7215_bb.png)
+
 ---
 
 ## Serial Monitor Version
 
 This version uses the Arduino IDE Serial Monitor (baud rate: 115200). Three program variants are provided:  
 
-- ESP8266 Blocking  
-- ESP8266 Non-blocking  
+- NANO 33 Iot
+- ESP8266
 - ESP32  
 
-The **blocking version** is simplest in logic: the program loops indefinitely until a condition is met (e.g., waiting for user input). It’s useful for understanding the library’s workflow.  
-The **non-blocking version** uses a state machine so tasks can proceed in parallel without getting stuck.  
-The **ESP32 version** is a port of the ESP8266 non-blocking version.  
-
+The **serial monitor version** uses a state machine so tasks can proceed in parallel without getting stuck.  
 After uploading the program, the main menu appears in the Serial Monitor. If not, simply press Enter or reset the Arduino board.  
 
 ![](../img/sm_1_en.png)
 
 ### Initialization
 
-First-time use requires **sampling the original air conditioner remote control**. The collected data is used to initialize the library. The process is step-by-step, guided on-screen. If initialization fails repeatedly, the AC model may be one of the rare types that BC7215A cannot directly decode. In this case, you can try using **predefined protocols** to test control.  
-
-![](../img/sm_2_en.png)
-
-![](../img/sm_4_en.png)
+First-time use requires **Pairing With A/C**. The collected data is used to initialize the library. The process is step-by-step, guided on-screen. If pairing fails repeatedly, the AC model may be one of the rare types that BC7215A cannot directly decode. In this case, you can try using **predefined protocols** to test control.  
 
 ### A/C Control
 
 Once initialized successfully, you can start controlling the AC through a **two-level menu**:  
 
 1. Choose control type (parameters such as temperature, or power on/off).  
+
 2. Enter parameter values (temperature, mode, fan speed).  
+
+![](../img/sm_2_en.png)
 
 ![](../img/sm_3_en.png)
 
@@ -85,16 +96,17 @@ When the program runs for the first time, the menu appears:
 - Left button (**SEL**) selects items.  
 - Right button (**OK**) confirms.   
 
-![](../img/menu_en.jpg)
+<img src="../img/menu_en.jpg" title="" alt="" width="427">
 
 ### Initialization
 
 First, perform initialization by sampling the AC remote.  
 
+<img src="../img/capture_en.jpg" title="" alt="" width="423">
 
-![](../img/capture_en.jpg)If successful, the program enters the **AC control page**:  
+If successful, the program enters the **AC control page**:  
 
-![](../img/lcd_en.jpg)
+<img src="../img/badge_en.jpg" title="" alt="" width="423">
 
 **Button functions:**  
 
@@ -139,11 +151,11 @@ Default MQTT broker: `broker.hivemq.com`
 
 ---
 
-### 2. Network-Controlled AC
+### 2. Network-Controlled A/C
 
 On startup, the device connects to WiFi, then to the MQTT server. Once connected, WiFi and MQTT icons appear on the screen.  
 
-![](../img/badge_en.jpg)
+<img src="../img/badge_en.jpg" title="" alt="" width="387">
 
 **MQTT Topics:**  
 
@@ -175,19 +187,35 @@ Example:
 
 ---
 
-### MQTT Client
+### A/C Online Monitor
+
+Once connected with MQTT server, any A/C status change will be published online, including both MQTT command and local operation, if program is in "parsing mode", it will also report the parsing result online. So you can monitor the A/C working status online even the user operates the A/C by a traditional IR remote.
+
+<img src="../img/parsing-en.jpg" title="" alt="" width="403">
+
+## MQTT Client
 
 Most free public brokers provide web or desktop MQTT clients. Any client can publish control messages as long as it connects to the same server and topics.  
 
 Example HiveMQ web client:  
 [https://www.hivemq.com/demos/websocket-client/](https://www.hivemq.com/demos/websocket-client/)  
 
-![hivehq_screenshoot](../img/hivehq_screenshoot.jpg)
+To use it: open the page, leave all fields as is and click "Connect",
+
+![hivehq_screenshoot](../img/MQTT-Client1.png)
+
+When it's connected, setup the topics and and it's ready to go.
+
+![](../img/MQTT-Client2.png)
+
+"Publish" area is for the online A/C control, temperature and others each have their own topics, enter the value to be set and "publish" it, the BC7215A module will send IR to control the A/C.
+
+"Subscriptions" is for the A/C status report, received reports will be shown in "Messages" area.
 
 ---
 
 ### AC Status Reporting
 
-Whenever an IR command is sent (via button or MQTT), the new AC state is also reported to the MQTT server. Clients subscribed to the **report topic** will receive updates:  
+Whenever an IR command is sent (via button or MQTT), or in the parsing mode when an IR signal is received, the new AC state is reported to the MQTT server. Clients subscribed to the **report topic** will receive updates:  
 
 `BC7215A/<UUID>/var/report`  

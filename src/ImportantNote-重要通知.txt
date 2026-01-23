@@ -1,0 +1,33 @@
+为减小体积，自V5.3版本起，新增的"多段格式"的空调协议，
+将仅支持以bc7215_ac_init2()函数进行初始化，如使用
+bc7215_ac_init()初始化新增多段协议的第一段信息，将返回
+"不成功"，建议现有用户尽快参照新版所附建议初始化流程将
+初始化流程更新，以保持对新增协议的支持。
+
+* V5.3版之前已有多段协议维持不变，仍可使用
+  bc7215_ac_init()初始化第一段，并在
+  bc7215_ac_need_extra_sample()得到返回值"4". 即如不
+  升级初始化流程而仅升级码库，不会丧失对已有协议的支持，
+  新增普通协议亦可支持，仅新增多段协议将受限。
+
+
+To reduce memory footprint, starting from version V5.3,
+newly added "multi-segment" A/C protocols will only
+support initialization via the bc7215_ac_init2() function.
+If the bc7215_ac_init() is used on the first segment of
+a new multi-segment protocol, it will return "unsuccessful."
+It is recommended that existing users update their
+initialization process as soon as possible to ensure
+compatibility with newly added "multi-segment" protocols.
+(Please refer to the attached programming flowchart)
+
+Note:
+  Legacy multi-segment protocols (those existing prior to
+  V5.3) remain unchanged. You can still use bc7215_ac_init()
+  to initialize the first segment, and 
+  bc7215_ac_need_extra_sample() will continue to return a
+  value of "4". In other words, if you only upgrade the
+  library without updating the initialization flow, you 
+  will not lose support for existing protocols, and added 
+  standard protocols will be supported. Only newly added 
+  multi-segment protocols will be restricted.
