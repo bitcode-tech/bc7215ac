@@ -28,9 +28,6 @@
 // #define MY_WIFI_SSID     "你的WiFi名称"    // 替换为您的WiFi名称
 // #define MY_WIFI_PASSWORD "你的WiFi密码"    // 替换为您的WiFi密码
 // #define MY_UUID          "你的UUID"        // 使用UUID生成器创建唯一设备ID
-#define MY_WIFI_SSID     "jj-ome"                                      // Replace with your WiFi SSID
-#define MY_WIFI_PASSWORD "jianjiao04238"                               // Replace with your WiFi password
-#define MY_UUID          "11741ad2-0f8c-4431-a49f-30a6d9cb3737"        // Use a UUID generator for unique device ID
 
 // 编译检查必要配置
 #if !defined(MY_WIFI_SSID) || !defined(MY_WIFI_PASSWORD) || !defined(MY_UUID)
