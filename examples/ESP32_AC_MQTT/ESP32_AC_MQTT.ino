@@ -25,9 +25,9 @@
 #include <bc7215ac.h>
 
 // WiFi and device configuration - Replace with your own values
-#define MY_WIFI_SSID     "jj-ome"                                      // Replace with your WiFi SSID
-#define MY_WIFI_PASSWORD "jianjiao04238"                               // Replace with your WiFi password
-#define MY_UUID          "11741ad2-0f8c-4431-a49f-30a6d9cb3737"        // Use a UUID generator for unique device ID
+//#define MY_WIFI_SSID     "******"                                      // Replace with your WiFi SSID
+//#define MY_WIFI_PASSWORD "********"                                    // Replace with your WiFi password
+//#define MY_UUID          "********-****-****-****-************"        // Use a UUID generator for unique device ID
 
 // Compilation check for required configuration
 #if !defined(MY_WIFI_SSID) || !defined(MY_WIFI_PASSWORD) || !defined(MY_UUID)
