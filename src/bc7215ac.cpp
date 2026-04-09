@@ -9,6 +9,25 @@ BC7215AC::BC7215AC(BC7215& bc7215Chip)
 	}
     bc7215.setTx();
     initOK = false;
+	useFahrenheit = false;
+}
+
+void BC7215AC::setFahrenheit()
+{
+	if (!useFahrenheit)		// if temp unit changed, reset init. state.
+	{
+		initOK = false;
+	}
+	useFahrenheit = true;
+}
+
+void BC7215AC::setCelsius()
+{
+	if (useFahrenheit)
+	{
+		initOK = false;
+	}
+	useFahrenheit = false;
 }
 
 void BC7215AC::startCapture()
@@ -84,7 +103,14 @@ bool BC7215AC::init()
 	initOK = false;
     if (sampleCount == 1)
     {
-        initOK = bc7215_ac_init(sampleStatus[0], reinterpret_cast<const bc7215DataVarPkt_t*>(&rcvdMessage[0]));
+		if (useFahrenheit)
+		{
+        	initOK = bc7215_ac_init_f(sampleStatus[0], reinterpret_cast<const bc7215DataVarPkt_t*>(&rcvdMessage[0]));
+		}
+		else
+		{
+        	initOK = bc7215_ac_init(sampleStatus[0], reinterpret_cast<const bc7215DataVarPkt_t*>(&rcvdMessage[0]));
+		}
     }
 	else if (sampleCount > 1)
 	{
@@ -99,7 +125,14 @@ bool BC7215AC::init()
 				sampleStatus[j] &= 0xbf;
         	}
 		}
-		initOK = bc7215_ac_init2(sampleCount, rcvdMessage, 0);
+		if (useFahrenheit)
+		{
+			initOK = bc7215_ac_init2_f(sampleCount, rcvdMessage, 0);
+		}
+		else
+		{
+			initOK = bc7215_ac_init2(sampleCount, rcvdMessage, 0);
+		}
 	}
     return initOK;
 }
@@ -108,37 +141,24 @@ bool BC7215AC::init(const bc7215DataMaxPkt_t& data, const bc7215FormatPkt_t& for
 {
     rcvdMessage[0].body.msg.datPkt = reinterpret_cast<const bc7215DataVarPkt_t*>(&data);
     rcvdMessage[0].body.msg.fmt = &format;
-	initOK = bc7215_ac_init(format.signature.inByte, reinterpret_cast<const bc7215DataVarPkt_t*>(&rcvdMessage[0]));
+	if (useFahrenheit)
+	{
+		initOK = bc7215_ac_init_f(format.signature.inByte, reinterpret_cast<const bc7215DataVarPkt_t*>(&rcvdMessage[0]));
+	}
+	else
+	{
+		initOK = bc7215_ac_init(format.signature.inByte, reinterpret_cast<const bc7215DataVarPkt_t*>(&rcvdMessage[0]));
+	}
 	return initOK;
 }
 
 bool BC7215AC::matchNext() 
 {
-	initOK = bc7215_ac_find_next(); 
+	if (initOK)
+	{
+		initOK = bc7215_ac_find_next(); 
+	}
 	return initOK;
-}
-
-uint8_t BC7215AC::extraSample() { return bc7215_ac_need_extra_sample(); }
-
-bool BC7215AC::saveExtra()
-{
-    rcvdMessage[0].bitLen = 0;
-	rcvdMessage[0].body.msg.fmt = &sampleFormat[0];
-    rcvdMessage[0].body.msg.datPkt = reinterpret_cast<const bc7215DataVarPkt_t*>(&sampleData[0]);
-    return bc7215_ac_save_2nd_base(sampleStatus[0], &rcvdMessage[0]);
-}
-
-bool BC7215AC::saveExtra(const bc7215DataMaxPkt_t& data, const bc7215FormatPkt_t& format)
-{
-	rcvdMessage[0].bitLen = 0;
-    rcvdMessage[0].body.msg.fmt = &format;
-    rcvdMessage[0].body.msg.datPkt = reinterpret_cast<const bc7215DataVarPkt_t*>(&data);
-    return bc7215_ac_save_2nd_base(format.signature.bits.sig, &rcvdMessage[0]);
-}
-
-bc7215CombinedMsg_t BC7215AC::getExtra()
-{
-	return bc7215_ac_get_2nd_base();
 }
 
 uint8_t BC7215AC::cntPredef() { return bc7215_ac_predefined_cnt(); }
@@ -158,20 +178,34 @@ bool BC7215AC::initPredef(uint8_t index)
     initOK = false;
     if (index < cntPredef())
     {
-		memcpy(&sampleData[0], bc7215_ac_predefined_data(index), (bc7215_ac_predefined_data(index)->bitLen+7)/8+2);
+		if (useFahrenheit)
+		{
+			memcpy(&sampleData[0], bc7215_ac_predefined_data_f(index), (bc7215_ac_predefined_data_f(index)->bitLen+7)/8+2);
+		}
+		else
+		{
+			memcpy(&sampleData[0], bc7215_ac_predefined_data(index), (bc7215_ac_predefined_data(index)->bitLen+7)/8+2);
+		}
 		memcpy(&sampleFormat[0], bc7215_ac_predefined_fmt(index), 33);
 		
-        initOK = init(sampleData[0], sampleFormat[0]);
+       	initOK = init(sampleData[0], sampleFormat[0]);
     }
     return initOK;
 }
 
-const bc7215DataVarPkt_t* BC7215AC::setTo(int tempC, int mode, int fan, int key)
+const bc7215DataVarPkt_t* BC7215AC::setTo(int temp, int mode, int fan, int key)
 {
     const bc7215DataVarPkt_t* dataPkt;
     if (initOK)
     {
-        dataPkt = bc7215_ac_set(tempC - 16, mode, fan, key);
+		if (useFahrenheit)
+		{
+        	dataPkt = bc7215_ac_set_f(temp - 60, mode, fan, key);
+		}
+		else
+		{
+        	dataPkt = bc7215_ac_set(temp - 16, mode, fan, key);
+		}
         sendAcCmd(dataPkt);
         return dataPkt;
     }
@@ -209,35 +243,48 @@ const bc7215DataVarPkt_t* BC7215AC::off()
 bool BC7215AC::parse(int& temp, int& mode, int& fan, int& power)
 {
 	int8_t t, m, f, p;
-	bool result;
-    if (sampleCount == 1)
-    {
-        bc7215_ac_replace_base(sampleStatus[0], reinterpret_cast<const bc7215DataVarPkt_t*>(&sampleData[0]));
-    }
-	else if (sampleCount > 1)
+	bool result = false;
+	if (initOK)
 	{
-		for (int j=0; j<sampleCount; j++)
+    	if (sampleCount == 1)
+    	{
+    	    bc7215_ac_replace_base(sampleStatus[0], reinterpret_cast<const bc7215DataVarPkt_t*>(&sampleData[0]));
+    	}
+		else if (sampleCount > 1)
 		{
-        	if (sampleStatus[j] & 0x40)        // if receiving status has "REV" bit set, reverse every byte of data
-        	{
-        	    for (int i = 0; i < (sampleData[j].bitLen + 7) / 8; i++)
-        	    {
-        	        sampleData[j].data[i] = ~sampleData[j].data[i];
-        	    }
-				sampleStatus[j] &= 0xbf;
-        	}
+			for (int j=0; j<sampleCount; j++)
+			{
+    	    	if (sampleStatus[j] & 0x40)        // if receiving status has "REV" bit set, reverse every byte of data
+    	    	{
+    	    	    for (int i = 0; i < (sampleData[j].bitLen + 7) / 8; i++)
+    	    	    {
+    	    	        sampleData[j].data[i] = ~sampleData[j].data[i];
+    	    	    }
+					sampleStatus[j] &= 0xbf;
+    	    	}
+			}
+			bc7215_ac_replace_base(sampleCount, reinterpret_cast<const bc7215DataVarPkt_t*>(rcvdMessage));
 		}
-		bc7215_ac_replace_base(sampleCount, reinterpret_cast<const bc7215DataVarPkt_t*>(rcvdMessage));
+		if (useFahrenheit)
+		{
+			result = bc7215_ac_parse_f(&t, &m, &f, &p);
+			temp = t+60;
+		}
+		else
+		{
+			result = bc7215_ac_parse(&t, &m, &f, &p);
+			temp = t+16;
+		}
+		mode = m;
+		fan = f;
+		power = p;
 	}
-	result = bc7215_ac_parse(&t, &m, &f, &p);
-	temp = t+16;
-	mode = m;
-	fan = f;
-	power = p;
 	return result;
 }
 
 bool BC7215AC::isBusy() { return bc7215.isBusy(); }
+
+bool BC7215AC::isCelsius() { return !useFahrenheit; }
 
 const bc7215DataVarPkt_t* BC7215AC::getDataPkt() { return bc7215_ac_get_base_data(); }
 

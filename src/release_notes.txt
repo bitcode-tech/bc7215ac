@@ -36,4 +36,17 @@ V5.3	2026-01-05  1. Increased parsing accuracy.
 					2. Supports more protocols.
 					3. Bug fixes.
 
-V5.4	2026-01-	1. Improved compatibility with Cortex-M0 & big-endin systems.
+V5.4	2026-01-19	1. Improved compatibility with Cortex-M0 & big-endin systems.
+                    2. Intergrated with BC7215 driver library V4.1
+
+V6.0	2026-01-30  1. Updated software license.
+
+V7.0	2026-03-30  1. Fahrenheit dedicated functions:
+                       bc7215_ac_init_f()
+					   bc7215_ac_init2_f()
+					   bc7215_ac_set_f()
+					   bc7215_ac_predefined_data_f()
+					   bc7215_ac_parse_f()
+					2. Extra sampling is no more needed.
+					3. Supports more protocols.
+					4. Added some Fahrenheit specific protocols.

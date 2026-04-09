@@ -14,6 +14,10 @@ public:
 	uint8_t				sampleStatus[4];		// Storage for captured data status
 	bc7215DataMaxPkt_t  sampleData[4];          // Storage for captured IR data
 	bc7215FormatPkt_t   sampleFormat[4];        // Storage for captured IR format
+
+	// Set system temperature unit
+	void					  setFahrenheit();
+	void					  setCelsius();
 	
 	// Start IR signal capturing (enter RX mode)
     void                      startCapture();
@@ -32,19 +36,7 @@ public:
 
 	// Try to find next matched protocol
     bool                      matchNext();
-
-	// Check if the current protocol needs extra sampling
-    uint8_t                   extraSample();
-
-	// Save the last captured data & format as the extra base data and format
-    bool                      saveExtra();
-
-	// Save the 'data' and 'format' as the extra base data and format
-    bool                      saveExtra(const bc7215DataMaxPkt_t& data, const bc7215FormatPkt_t& format);
-
-	// Get the current extra format and base data
-	bc7215CombinedMsg_t		  getExtra();
-
+	
 	// Get the count of pre-defined(built-in) protocols
     uint8_t                   cntPredef();
 
@@ -55,7 +47,7 @@ public:
     bool                      initPredef(uint8_t index);
 
 	// Transmit IR to set A/C to particular settings
-    const bc7215DataVarPkt_t* setTo(int tempC, int mode = -1, int fan = -1, int key = 0);
+    const bc7215DataVarPkt_t* setTo(int temp, int mode = -1, int fan = -1, int key = 0);
 
 	// Transmit IR to turn On/Off the A/C
     const bc7215DataVarPkt_t* on();
@@ -66,6 +58,9 @@ public:
     
 	// Check if the BC7215A is busing receiving or transmitting
 	bool                      isBusy();
+
+	// Check if library is current in Celsius mode
+	bool					  isCelsius();
 
 	// Get the base data packet
     const bc7215DataVarPkt_t* getDataPkt();
@@ -81,6 +76,7 @@ private:
     bc7215CombinedMsg_t rcvdMessage[4];
 	unsigned long		timerStartTime;
 	bool				isCapturing;
+	bool				useFahrenheit;			// is system temperature Fahrenheit
     void                sendAcCmd(const bc7215DataVarPkt_t* dataPkt);
 };
 

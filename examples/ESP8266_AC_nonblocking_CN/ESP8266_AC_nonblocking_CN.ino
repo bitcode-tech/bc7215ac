@@ -32,6 +32,7 @@ const String PWR_STATUS[] = { "关", "开", "切换", "不适用" };
 // 状态机枚举
 enum L1_STATE
 {
+	CHOOSE_UNIT,		// Choose temperature unit
     MAIN_MENU,          // 主菜单
     CAPTURE,            // 信号采样
     AC_CONTROL,         // 空调控制
@@ -60,7 +61,6 @@ BC7215AC       ac(bc7215Board);        // 空调控制对象
 
 // 全局变量
 char                      choice;
-int                       extra;
 unsigned long             startTime;
 int                       interval;
 L1_STATE                  mainState;
@@ -82,10 +82,16 @@ void setup()
     bc7215Serial.begin(19200, SWSERIAL_8N2);        // 启动 BC7215 软串口
     pinMode(LED, OUTPUT);                           // 设置 LED 引脚为输出
     ledOff();                                       // 初始关闭 LED
-    mainState = MAIN_MENU;
+    mainState = CHOOSE_UNIT;
     l2State = STEP1;
     interval = 10;
     delay(100);
+	bc7215Board.setRx();		// 如果BC7215A处于关机状态，切换为接收模式会将其唤醒
+	delay(50);
+    bc7215Board.setTx();        // 转换为发射模式
+    delay(50);
+	Serial.println("");
+	Serial.print("系统初始化完成，");
 }
 
 /*
@@ -95,6 +101,9 @@ void loop()
 {
     switch (mainState)
     {
+    case CHOOSE_UNIT:
+    	chooseUnitJob();
+    	break;
     case MAIN_MENU:
         mainMenuJob();
         break;
@@ -123,6 +132,48 @@ void loop()
         break;
     }
     delay(interval);
+}
+
+/*
+ * 制式菜单处理程序: 显示菜单并处理用户选择
+ */
+void chooseUnitJob(void)
+{
+    switch (l2State)
+    {
+    case STEP1:
+    	Show_Unit_Menu();
+        clearSerialBuf();
+        l2State = STEP2;
+        break;
+    case STEP2:
+        if (Serial.available())
+        {        // 如果有输入
+            switch (Serial.read())
+            {
+            case '1':        // 摄氏
+				ac.setCelsius();
+            	Serial.println("空调设置为摄氏");
+            	l2State = STEP3;
+            	break;
+            case '2':		// 华氏
+				ac.setFahrenheit();
+            	Serial.println("空调设置为华氏");
+            	l2State = STEP3;
+            	break;
+            default:
+				l2State = STEP1;
+            	break;
+            }
+        }
+        break;
+    case STEP3:
+    	mainState = MAIN_MENU;
+    	l2State = STEP1;
+    	break;
+    default:
+    	break;
+    }
 }
 
 /*
@@ -191,6 +242,10 @@ void mainMenuJob()
                 mainState = IR_PARSING;
                 l2State = STEP1;
                 break;
+			case '8':		// 转换制式
+				mainState = CHOOSE_UNIT,		// 选择温度制式
+				l2State = STEP1;
+				break;
             default:
                 mainState = MAIN_MENU;
                 l2State = STEP1;
@@ -212,8 +267,16 @@ void captureJob()
     switch (l2State)
     {
     case STEP1:        // 提示用户准备
-        Serial.println("\n现在进行红外空调配对。 "
-                       "\n请将空调遥控器设置为 <制冷模式, 25°C(77°F)>，然后按任意键继续...");
+		if (ac.isCelsius())
+		{
+        	Serial.println("\n现在进行红外空调配对。 "
+        	               "\n请将空调遥控器设置为 <制冷模式, 25°C>，然后按任意键继续...");
+		}
+		else
+		{
+        	Serial.println("\n现在进行红外空调配对。 "
+        	               "\n请将空调遥控器设置为 <制冷模式, 78°F>，然后按任意键继续...");
+		}
         clearSerialBuf();
         l2State = STEP2;
         break;
@@ -227,78 +290,32 @@ void captureJob()
             l2State = STEP3;
         }
         break;
-    case STEP3:        // 处理第一次采样结果
+    case STEP3:        // 处理采样结果
         if (ac.signalCaptured())
         {
             ac.stopCapture();
             if (ac.init())        // 尝试初始化
             {
-                ledOn();
                 Serial.print("接收到的数据: ");
                 dataPkt = ac.getDataPkt();
                 printData(dataPkt->data, (dataPkt->bitLen + 7) / 8);
                 Serial.println("使用接收到的数据初始化空调控制库 **成功** !!! ");
-                extra = ac.extraSample();
-                if (extra > 0)        // 需要额外采样
-                {
-                    if (extra > 3)
-                    {
-                        ledOff();
-                        break;
-                    }
-                    Serial.print("此空调格式特殊，需要对原始遥控信号进行进一步采样。\n"
-                                 "现在请按遥控器上的 <<");
-                    Serial.println(EXTRA_KEY[extra - 1] + ">> 按钮进行额外采样..");
-                    Serial.println("按回车键开始采样步骤...");
-                    clearSerialBuf();
-                    l2State = STEP4;
-                    break;
-                }
             }
             else        // 初始化失败
             {
-                ledOff();
                 Serial.println("使用接收到的数据初始化空调控制库 **失败**，"
                                "\n可能是由于遥控器状态设置不正确或接收解码错误。请"
                                "检查遥控器设置并重试");
             }
-            l2State = STEP6;
-        }
-        if (millis() - startTime > 300)
-        {
-            startTime = millis();
-            ledToggle();
+            l2State = STEP4;
         }
         break;
-    case STEP4:        // 准备额外采样
-        if (Serial.available())
-        {
-            Serial.println("开始采样...");
-            ac.startCapture();
-            startTime = millis();
-            l2State = STEP5;
-        }
-        break;
-    case STEP5:        // 额外采样处理
-        if (ac.signalCaptured())
-        {
-            ac.stopCapture();
-            ac.saveExtra();
-            ledOn();
-            l2State = STEP6;
-        }
-        if (millis() - startTime > 300)
-        {
-            startTime = millis();
-            ledToggle();
-        }
-        break;
-    case STEP6:        // 采样完成提示
+    case STEP4:        // 采样完成提示
         Serial.println("现在请输入任意内容，程序将返回主菜单，即可开始控制空调...");
         clearSerialBuf();
-        l2State = STEP7;
+        l2State = STEP5;
         break;
-    case STEP7:        // 等待用户确认返回
+    case STEP5:        // 等待用户确认返回
         if (Serial.available())
         {
             mainState = MAIN_MENU;
@@ -396,11 +413,16 @@ void acControlJob()
                     // 4 = 保持
 
                     Serial.print("发送指令设置空调为: ");
-                    if (t >= 16 && t <= 30)
+                    if (ac.isCelsius() && (t >= 16 && t <= 30))
                     {
                         Serial.print(t);
                         Serial.print("°C, 模式: ");
                     }
+					else if (!ac.isCelsius() && (t >= 60 && t <= 88))
+					{
+                        Serial.print(t);
+                        Serial.print("°F, 模式: ");
+					}
                     else
                     {
                         Serial.print("(保持温度), 模式: ");
@@ -448,6 +470,9 @@ void acControlJob()
  */
 void backupJob()
 {
+	bool	isCelsius;
+
+	isCelsius = ac.isCelsius();
     switch (l2State)
     {
     case STEP1:
@@ -456,10 +481,11 @@ void backupJob()
             formatPkt = ac.getFormatPkt();
             dataPkt = ac.getDataPkt();
             EEPROM.put(0, *formatPkt);                              // 保存数据到 EEPROM
-            EEPROM.put(33, *((bc7215DataMaxPkt_t*)dataPkt));        // 保存格式到 EEPROM
+            EEPROM.put(sizeof(bc7215FormatPkt_t), *((bc7215DataMaxPkt_t*)dataPkt));        // 保存格式到 EEPROM
+			EEPROM.put(sizeof(bc7215FormatPkt_t)+sizeof(bc7215DataMaxPkt_t), isCelsius);	// 保存制式到 EEPROM
             EEPROM.commit();
             Serial.println("\n格式信息: ");
-            printData(formatPkt, 33);
+            printData(formatPkt, sizeof(bc7215FormatPkt_t));
             Serial.print("数据: ");
             printData(dataPkt->data, (dataPkt->bitLen + 7) / 8);
             Serial.println("信息已保存到 Flash 存储器");
@@ -488,16 +514,27 @@ void backupJob()
  */
 void restoreJob()
 {
+	bool	isCelsius;
+
     switch (l2State)
     {
     case STEP1:
         EEPROM.get(0, irFormat);        // 从 EEPROM 加载格式
-        EEPROM.get(33, irData);         // 从 EEPROM 加载数据
+        EEPROM.get(sizeof(bc7215FormatPkt_t), irData);          // 从 EEPROM 加载数据
+		EEPROM.get(sizeof(bc7215FormatPkt_t)+sizeof(bc7215DataMaxPkt_t), isCelsius);	// 从 EEPROM 加载制式
         Serial.println("\n使用 Flash 中保存的配置");
         Serial.print("格式信息: ");
         printData(&irFormat, sizeof(bc7215FormatPkt_t));
         Serial.print("数据: ");
         printData(&irData.data, (irData.bitLen + 7) / 8);
+		if (isCelsius)
+		{
+			ac.setCelsius();
+		}
+		else
+		{
+			ac.setFahrenheit();
+		}
         if (ac.init(irData, irFormat))
         {
             Serial.println("空调控制库初始化  ***成功*** !");
@@ -578,7 +615,7 @@ void loadPredefJob()
             if (ac.initPredef(choice))
             {
                 Serial.print("格式: ");
-                printData(ac.getFormatPkt(), 33);
+                printData(ac.getFormatPkt(), sizeof(bc7215FormatPkt_t));
                 Serial.print("数据: ");
                 printData(ac.getDataPkt(), (ac.getDataPkt()->bitLen + 7) / 8 + 2);
                 Serial.println("初始化成功 !!! 按任意键继续");
@@ -587,7 +624,7 @@ void loadPredefJob()
             else
             {
                 Serial.print("格式: ");
-                printData(&ac.sampleFormat[0], 33);
+                printData(&ac.sampleFormat[0], sizeof(bc7215FormatPkt_t));
                 Serial.print("数据: ");
                 printData(&ac.sampleData[0], BC7215_MAX_RX_DATA_SIZE);
                 Serial.println("初始化失败.... 输入任意内容继续");
@@ -645,8 +682,16 @@ void irParsingJob()
             P = -1;
             if (ac.parse(T, M, F, P))
             {
-                if ((T < 16) || (T > 30))
-                    T = -1;
+				if (ac.isCelsius())
+				{
+                	if ((T < 16) || (T > 30))
+                	    T = -1;
+				}
+				else
+				{
+                	if ((T < 60) || (T > 88))
+                	    T = -1;
+				}
                 if ((M < 0) || (M > 4))
                     M = 6;
                 if ((F < 0) || (F > 3))
@@ -680,6 +725,17 @@ void irParsingJob()
 }
 
 /*
+ * 显示温度制式菜单 
+ */
+void Show_Unit_Menu(void)
+{
+    Serial.println("请选择空调的温度制式：");
+    Serial.println("   1. °C 摄氏");
+    Serial.println("   2. °F 华氏");
+    Serial.println("");
+}
+
+/*
  * 显示主菜单
  */
 void showMainMenu()
@@ -694,6 +750,10 @@ void showMainMenu()
         Serial.println("***已初始化***");
     else
         Serial.println("未初始化 (使用前必须先与空调配对)");
+	if (ac.isCelsius())
+		Serial.println("温度制式：摄氏");
+	else
+		Serial.println("温度制式：华氏");
     Serial.println("请选择:");
     Serial.println("   1. 与空调配对");
     Serial.println("   2. 控制空调");
@@ -723,12 +783,24 @@ void showCtrlMenu()
  */
 void showParamMenu()
 {
-    Serial.println(" *** 空调参数调整 *** "
-                   "\n格式: '温度, 模式, 风速, 按键' 用逗号 ',' 分隔, 例如: 24, 1, 2, 0");
-    Serial.println("允许减少参数，例如 '18, 2' 意味着设置为 '18°C 制热模式'");
-    Serial.println("风速和按键保持不变。");
-    Serial.println("温度(°C)         模式            风速             按键");
-    Serial.println(" 范围: 16~30       0 - 自动         0 - 自动         0 - 温度 +");
+	if (ac.isCelsius())
+	{
+    	Serial.println(" *** 空调参数调整 *** "
+    	               "\n格式: '温度, 模式, 风速, 按键' 用逗号 ',' 分隔, 例如: 24, 1, 2, 0");
+    	Serial.println("允许减少参数，例如 '18, 2' 意味着设置为 '18°C 制热模式'");
+    	Serial.println("风速和按键保持不变。");
+    	Serial.println("温度(°C)         模式            风速             按键");
+    	Serial.println(" 范围: 16~30       0 - 自动         0 - 自动         0 - 温度 +");
+	}
+	else
+	{
+    	Serial.println(" *** 空调参数调整 *** "
+    	               "\n格式: '温度, 模式, 风速, 按键' 用逗号 ',' 分隔, 例如: 75, 1, 2, 0");
+    	Serial.println("允许减少参数，例如 '72, 2' 意味着设置为 '72°F 制热模式'");
+    	Serial.println("风速和按键保持不变。");
+    	Serial.println("温度(°F)         模式            风速             按键");
+    	Serial.println(" 范围: 60-88       0 - 自动         0 - 自动         0 - 温度 +");
+	}
     Serial.println("                   1 - 制冷         1 - 低           1 - 温度 -");
     Serial.println("                   2 - 制热         2 - 中           2 - 模式");
     Serial.println("                   3 - 除湿         3 - 高           3 - 风速");

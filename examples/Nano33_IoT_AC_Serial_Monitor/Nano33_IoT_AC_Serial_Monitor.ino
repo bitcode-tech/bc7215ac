@@ -28,6 +28,7 @@ const String PWR_STATUS[] = { "OFF", "ON", "TOG", "n/a" };
 // State machine enumerations
 enum L1_STATE
 {
+	CHOOSE_UNIT,		// Choose temperature unit
     MAIN_MENU,          // Main menu
     CAPTURE,            // Signal sampling
     AC_CONTROL,         // AC control
@@ -59,6 +60,7 @@ typedef struct
     bc7215FormatPkt_t  format;
     bc7215DataMaxPkt_t data;
     bool               valid;
+	bool			   unit;
 } BC7215Store;
 
 // The official FlashStorage library uses this macro
@@ -66,7 +68,6 @@ FlashStorage(storage, BC7215Store);
 
 // Global variables
 char                      choice;
-int                       extra;
 unsigned long             startTime;
 int                       interval;
 L1_STATE                  mainState;
@@ -87,10 +88,16 @@ void setup()
     Serial1.begin(19200, SERIAL_8N2);        // BC7215 hardware serial
     pinMode(LED, OUTPUT);                    // LED output mode
     ledOff();
-    mainState = MAIN_MENU;
+    mainState = CHOOSE_UNIT;
     l2State = STEP1;
     interval = 10;
     delay(100);
+	bc7215Board.setRx();		// set to Rx mode first to wakeup BC7215A if it's in shutdown mode
+	delay(50);
+    bc7215Board.setTx();        // Set BC7215A to transmit mode
+    delay(50);
+	Serial.println("");
+	Serial.print("System initialized. ");
 }
 
 /*
@@ -100,6 +107,9 @@ void loop()
 {
     switch (mainState)
     {
+    case CHOOSE_UNIT:
+    	chooseUnitJob();
+    	break;
     case MAIN_MENU:
         mainMenuJob();
         break;
@@ -128,6 +138,48 @@ void loop()
         break;
     }
     delay(interval);
+}
+
+/*
+ * Unit menu handler: Display menu and process user selections
+ */
+void chooseUnitJob(void)
+{
+    switch (l2State)
+    {
+    case STEP1:
+    	Show_Unit_Menu();
+        clearSerialBuf();
+        l2State = STEP2;
+        break;
+    case STEP2:
+        if (Serial.available())
+        {        // If there's input
+            switch (Serial.read())
+            {
+            case '1':        // Celsius
+				ac.setCelsius();
+            	Serial.println("AC has been set to Celsius.");
+            	l2State = STEP3;
+            	break;
+            case '2':		// Fahrenheit
+				ac.setFahrenheit();
+            	Serial.println("AC has been set to Fahrenheit.");
+            	l2State = STEP3;
+            	break;
+            default:
+				l2State = STEP1;
+            	break;
+            }
+        }
+        break;
+    case STEP3:
+    	mainState = MAIN_MENU;
+    	l2State = STEP1;
+    	break;
+    default:
+    	break;
+    }
 }
 
 /*
@@ -197,6 +249,10 @@ void mainMenuJob()
                 mainState = IR_PARSING;
                 l2State = STEP1;
                 break;
+			case '8':		// Change unit
+				mainState = CHOOSE_UNIT,		// Go to unit changing job
+				l2State = STEP1;
+				break;
             default:
                 mainState = MAIN_MENU;
                 l2State = STEP1;
@@ -218,8 +274,16 @@ void captureJob()
     switch (l2State)
     {
     case STEP1:        // Prompt user to prepare
-        Serial.println("\nNow performing IR AC pairing. "
-                       "\nPlease set AC remote to < Cooling mode, 25°C(77°F)>, then press any key to continue...");
+		if (ac.isCelsius())
+		{
+        	Serial.println("\nNow performing IR AC pairing. "
+        	               "\nPlease set AC remote to < Cooling mode, 25°C>, then press any key to continue...");
+		}
+		else
+		{
+        	Serial.println("\nNow performing IR AC pairing. "
+        	               "\nPlease set AC remote to < Cooling mode, 78°F>, then press any key to continue...");
+		}
         clearSerialBuf();
         l2State = STEP2;
         break;
@@ -233,78 +297,32 @@ void captureJob()
             l2State = STEP3;
         }
         break;
-    case STEP3:        // Process first sampling result
+    case STEP3:        // Process sampling result
         if (ac.signalCaptured())
         {
             ac.stopCapture();
             if (ac.init())        // Try to initialize
             {
-                ledOn();
                 Serial.print("Received data: ");
                 dataPkt = ac.getDataPkt();
                 printData(dataPkt->data, (dataPkt->bitLen + 7) / 8);
                 Serial.println("AC control library initialization using received data  **SUCCESS** !!! ");
-                extra = ac.extraSample();
-                if (extra > 0)        // Need extra sampling
-                {
-                    if (extra > 3)
-                    {
-                        ledOff();
-                        break;
-                    }
-                    Serial.print("This AC format is special, need further sampling of original remote signals. \nNow "
-                                 "please press <<");
-                    Serial.println(EXTRA_KEY[extra - 1] + ">> button on remote for additional sampling..");
-                    Serial.println("Press Enter to start sampling step...");
-                    clearSerialBuf();
-                    l2State = STEP4;
-                    break;
-                }
             }
             else        // Initialization failed
             {
-                ledOff();
                 Serial.println("AC control library initialization using received data **FAILED**, "
                                "\npossibly due to incorrect remote state settings or receiving decode errors. Please "
                                "check remote settings and try again");
             }
-            l2State = STEP6;
-        }
-        if (millis() - startTime > 300)
-        {
-            startTime = millis();
-            ledToggle();
+            l2State = STEP4;
         }
         break;
-    case STEP4:        // Prepare for extra sampling
-        if (Serial.available())
-        {
-            Serial.println("Starting sampling...");
-            ac.startCapture();
-            startTime = millis();
-            l2State = STEP5;
-        }
-        break;
-    case STEP5:        // Extra sampling processing
-        if (ac.signalCaptured())
-        {
-            ac.stopCapture();
-            ac.saveExtra();
-            ledOn();
-            l2State = STEP6;
-        }
-        if (millis() - startTime > 300)
-        {
-            startTime = millis();
-            ledToggle();
-        }
-        break;
-    case STEP6:        // Sampling completion prompt
+    case STEP4:        // Sampling completion prompt
         Serial.println("Now please enter any content, program will return to main menu and AC control can begin...");
         clearSerialBuf();
-        l2State = STEP7;
+        l2State = STEP5;
         break;
-    case STEP7:        // Wait for user confirmation to return
+    case STEP5:        // Wait for user confirmation to return
         if (Serial.available())
         {
             mainState = MAIN_MENU;
@@ -401,11 +419,16 @@ void acControlJob()
                         k = 4;        // 4 = Keep
 
                     Serial.print("Sending command to set AC to: ");
-                    if (t >= 16 && t <= 30)
+                    if (ac.isCelsius() && (t >= 16 && t <= 30))
                     {
                         Serial.print(t);
                         Serial.print("°C, Mode: ");
                     }
+					else if (!ac.isCelsius() && (t >= 60 && t <= 88))
+					{
+                        Serial.print(t);
+                        Serial.print("°F, Mode: ");
+					}
                     else
                     {
                         Serial.print("(keep Temp), Mode: ");
@@ -465,10 +488,11 @@ void backupJob()
         config.format = *formatPkt;
         config.data = *((bc7215DataMaxPkt_t*)dataPkt);
         config.valid = true;
+		config.unit = ac.isCelsius();
         storage.write(config);        // Save structure to Flash
 
         Serial.println("\nFormat info: ");
-        printData(formatPkt, 33);
+        printData(formatPkt, sizeof(bc7215FormatPkt_t));
         Serial.print("Data: ");
         printData(dataPkt->data, (dataPkt->bitLen + 7) / 8);
         Serial.println("Information saved to Flash memory");
@@ -507,6 +531,14 @@ void restoreJob()
             printData(&irFormat, sizeof(bc7215FormatPkt_t));
             Serial.print("Data: ");
             printData(&irData.data, (irData.bitLen + 7) / 8);
+			if (config.unit)
+			{
+				ac.setCelsius();
+			}
+			else
+			{
+				ac.setFahrenheit();
+			}
 
             if (ac.init(irData, irFormat))
             {
@@ -593,7 +625,7 @@ void loadPredefJob()
             if (ac.initPredef(choice))
             {
                 Serial.print("Format: ");
-                printData(ac.getFormatPkt(), 33);
+                printData(ac.getFormatPkt(), sizeof(bc7215FormatPkt_t));
                 Serial.print("Data: ");
                 printData(ac.getDataPkt(), (ac.getDataPkt()->bitLen + 7) / 8 + 2);
                 Serial.println("Initialization successful !!! Press any key to continue");
@@ -602,7 +634,7 @@ void loadPredefJob()
             else
             {
                 Serial.print("Format: ");
-                printData(&ac.sampleFormat[0], 33);
+                printData(&ac.sampleFormat[0], sizeof(bc7215FormatPkt_t));
                 Serial.print("Data: ");
                 printData(&ac.sampleData[0], BC7215_MAX_RX_DATA_SIZE);
                 Serial.println("Initialization failed.... Enter any content to continue");
@@ -661,8 +693,16 @@ void irParsingJob()
             P = -1;
             if (ac.parse(T, M, F, P))
             {
-                if ((T < 16) || (T > 30))
-                    T = -1;
+				if (ac.isCelsius())
+				{
+                	if ((T < 16) || (T > 30))
+                	    T = -1;
+				}
+				else
+				{
+                	if ((T < 60) || (T > 88))
+                	    T = -1;
+				}
                 if ((M < 0) || (M > 4))
                     M = 6;
                 if ((F < 0) || (F > 3))
@@ -696,6 +736,17 @@ void irParsingJob()
 }
 
 /*
+ * Display unit menu
+ */
+void Show_Unit_Menu(void)
+{
+    Serial.println("Please choose your AC's temperature unit:");
+    Serial.println("   1. °C Celsius");
+    Serial.println("   2. °F Fahrenheit");
+    Serial.println("");
+}
+
+/*
  * Display main menu
  */
 void showMainMenu()
@@ -710,6 +761,10 @@ void showMainMenu()
         Serial.println("***INITIALIZED***");
     else
         Serial.println("Not initialized (must be paired with AC before use)");
+	if (ac.isCelsius())
+		Serial.println("Temperature Unit: Celsius");
+	else
+		Serial.println("Temperature Unit: Fahrenheit");
     Serial.println("Please select:");
     Serial.println("   1. Pairing with AC");
     Serial.println("   2. Control air conditioner");
@@ -718,6 +773,7 @@ void showMainMenu()
     Serial.println("   5. Try next match (if paired successfully but cannot control AC properly)");
     Serial.println("   6. Load predefined protocol");
     Serial.println("   7. Parse IR signal");
+	Serial.println("   8. Set AC temp unit");
     Serial.println("");
 }
 
@@ -739,12 +795,24 @@ void showCtrlMenu()
  */
 void showParamMenu()
 {
-    Serial.println(" *** AC parameter adjustment *** "
-                   "\nFormat: 'temperature, mode, fan level, pressed-key' separated by commas ',', e.g.: 24, 1, 2, 0");
-    Serial.println("Fewer parameter is allowed, for example '18, 2' means set to '18°C Heating");
-    Serial.println("Fan Speed and Pressed Key unchanged.");
-    Serial.println("Temperature(°C)    Mode           Fan              Key");
-    Serial.println(" Range: 16~30       0 - Auto       0 - Auto         0 - Temp +");
+	if (ac.isCelsius())
+	{
+    	Serial.println(" *** AC parameter adjustment *** "
+    	               "\nFormat: 'temperature, mode, fan level, pressed-key' separated by commas ',', e.g.: 24, 1, 2, 0");
+    	Serial.println("Fewer parameter is allowed, for example '18, 2' means set to '18°C Heating");
+    	Serial.println("Fan Speed and Pressed Key unchanged.");
+    	Serial.println("Temperature(°C)    Mode           Fan              Key");
+    	Serial.println(" Range: 16~30       0 - Auto       0 - Auto         0 - Temp +");
+	}
+	else
+	{
+    	Serial.println(" *** AC parameter adjustment *** "
+    	               "\nFormat: 'temperature, mode, fan level, pressed-key' separated by commas ',', e.g.: 75, 1, 2, 0");
+    	Serial.println("Fewer parameter is allowed, for example '75, 2' means set to '75°F Heating");
+    	Serial.println("Fan Speed and Pressed Key unchanged.");
+    	Serial.println("Temperature(°F)    Mode           Fan              Key");
+    	Serial.println(" Range: 60-88       0 - Auto       0 - Auto         0 - Temp +");
+	}
     Serial.println("                    1 - Cool       1 - Low          1 - Temp -");
     Serial.println("                    2 - Heat       2 - Med          2 - Mode");
     Serial.println("                    3 - Dry        3 - High         3 - Fan");

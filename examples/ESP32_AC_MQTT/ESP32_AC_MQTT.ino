@@ -25,9 +25,9 @@
 #include <bc7215ac.h>
 
 // WiFi and device configuration - Replace with your own values
-//#define MY_WIFI_SSID     "******"                                      // Replace with your WiFi SSID
-//#define MY_WIFI_PASSWORD "*************"                               // Replace with your WiFi password
-//#define MY_UUID          "********-****-****-****-************"        // Use a UUID generator for unique device ID
+#define MY_WIFI_SSID     "jj-ome"                                      // Replace with your WiFi SSID
+#define MY_WIFI_PASSWORD "jianjiao04238"                               // Replace with your WiFi password
+#define MY_UUID          "11741ad2-0f8c-4431-a49f-30a6d9cb3737"        // Use a UUID generator for unique device ID
 
 // Compilation check for required configuration
 #if !defined(MY_WIFI_SSID) || !defined(MY_WIFI_PASSWORD) || !defined(MY_UUID)
@@ -72,9 +72,9 @@ static const uint16_t COLOR_ACTIVE_BADGE = TFT_RED;             // Badge color w
 // ====== Display Content Arrays =======
 const String MODES[] = { " AUTO ", " COOL ", " HEAT ", " DRY ", " FAN ", " -- " };        // AC operation modes
 const String FANSPEED[] = { " AUTO ", " LOW ", " MED ", " HIGH ", " -- " };               // Fan speed levels
-const String EXTRA_KEY[] = { "TEMP +/-", "MODE", "FAN SPEED" };          // Extra keys for additional IR signal capture
 const String PWR_STATUS[] = { " OFF ", " ON ", " TOG ", " -- " };        // Power state in command
-const char*  MAIN_MENU[] = { "Pair with A/C", "Find Next Match", "Load Pre-def", "Parse IR CMD", "Exit" };
+const char*  MAIN_MENU[] = { "Set Temp Unit", "Pair with A/C", "Find Next Match", "Load Pre-def", "Parse IR CMD", "Exit" };
+const char*  UNIT_MENU[] = { "'C Celsius", "'F Fahrenheit"};
 
 // ======= State Machine Enumerations =======
 
@@ -82,6 +82,7 @@ const char*  MAIN_MENU[] = { "Pair with A/C", "Find Next Match", "Load Pre-def",
 enum L1_STATE
 {
     START,               // Initial startup state
+	SET_UNIT,			 // Set system temperature unit
     INIT,                // AC initialization and IR learning
     TEMP_CTL,            // Set A/C to designated Temp, Mode, and Fan Speed via IR (main operation)
     ON_OFF_CTL,          // Power on/off control
@@ -167,8 +168,6 @@ int           currentMenuSelection;        // Currently selected menu item
 unsigned long startTime;                   // General purpose timer
 unsigned long wifiStartTime;               // wifi connection timer
 unsigned long mqttStartTime;               // mqtt connection timer
-bool          usingCelsius = true;         // Temperature unit flag
-int           extra;                       // Extra IR signals needed
 int           savedTemp;                   // Temporary temperature storage
 int8_t        matchCnt;                    // Number of AC protocol matches found
 bool          mqttCmd = false;             // Flag indicating command came from MQTT
@@ -208,12 +207,12 @@ void setup()
     }
 
     // Initialize state variables
+    delay(100);
     mainState = START;
     l2State = STEP1;
     keyboardState = BOTH_RELEASED;
     keyEvent = NO_KEY;
     interval = 10;
-    delay(100);
 }
 
 void loop()
@@ -224,6 +223,9 @@ void loop()
     case START:
         powerup();        // Handle startup sequence
         break;
+	case SET_UNIT:			// Setup temp unit
+		setUnit();
+		break;
     case INIT:
         initAC();        // Handle AC initialization and IR learning
         break;
@@ -293,13 +295,15 @@ void loop()
  */
 void powerup()
 {
+	bool	isCelsius;
+
     switch (l2State)
     {
     case STEP1:
         // Clear screen and initialize BC7215
         tft.fillScreen(COLOR_BG);
-        bc7215Board.setRx();
-        delay(50);
+		bc7215Board.setRx();		// set to Rx mode first to wakeup BC7215A if it's in shutdown mode
+		delay(50);
         bc7215Board.setTx();        // Set BC7215 to transmit mode
         delay(50);
         bc7215Board.setShutDown();        // Put BC7215 in shutdown mode to check BC7215A presence
@@ -344,6 +348,16 @@ void powerup()
         savedData.getBytes("format", &irFormat, sizeof(bc7215FormatPkt_t));
         savedData.getBytes("data", &irData, sizeof(bc7215DataMaxPkt_t));
         savedData.getBytes("matchIndex", &matchCnt, sizeof(matchCnt));
+		savedData.getBytes("tempUnit", &isCelsius, sizeof(bool));
+
+		if (isCelsius)		// set system temperature unit first
+		{
+			ac.setCelsius();
+		}
+		else
+		{
+			ac.setFahrenheit();
+		}
 
         // Try to initialize AC with saved data
         if (ac.init(irData, irFormat))
@@ -363,16 +377,17 @@ void powerup()
                 }
             }
 
-            // Load extra IR signals if available
-            if (ac.extraSample())
-            {
-                savedData.getBytes("extraFormat", &irFormat, sizeof(bc7215FormatPkt_t));
-                savedData.getBytes("extraData", &irData, sizeof(bc7215DataMaxPkt_t));
-                ac.saveExtra(irData, irFormat);
-            }
 
             // Initialize default AC settings
-            temp = 25;
+			drawUnit();
+			if (ac.isCelsius())
+			{
+            	temp = 25;
+			}
+			else
+			{
+				temp = 78;
+			}
             mode = 1;
             fan = 1;
             mainState = TEMP_CTL;
@@ -397,6 +412,65 @@ void powerup()
     default:
         break;
     }
+}
+
+
+/*
+ * Set system temp unit handler
+ * Setup unit from menu
+ */
+void setUnit()
+{
+	uint8_t	newIndex;
+
+	switch (l2State)
+	{
+	case STEP1:		// Display Menu
+            showMenu(UNIT_MENU, sizeof(UNIT_MENU) / sizeof(char*));
+            currentMenuSelection = 0;
+            updateMenu(currentMenuSelection);
+			l2State = STEP2;
+			break;
+	case STEP2:
+   		switch (keyEvent)
+   		{
+   		case LEFT_KEY_SHORT:	// 'SEL' button select menu item
+   		    // Navigate menu items
+   		    newIndex = currentMenuSelection + 1;
+   		    if (newIndex >= sizeof(UNIT_MENU) / sizeof(char*))
+   		    {
+   		        newIndex = 0;
+   		    }
+   		    updateMenu(newIndex);
+   		    break;
+
+   		case RIGHT_KEY_SHORT:	// 'OK' button to confirm selection
+   		    // Select menu item
+   		    switch (currentMenuSelection)
+   		    {
+   			case 0:		// switch to Celsius
+				ac.setCelsius();
+   				break;
+   		    case 1:    // switch to Fahrenheit    
+				ac.setFahrenheit();
+   		        break;
+   		    default:
+   		        break;
+   		    }
+			drawUnit();
+            showMenu(MAIN_MENU, sizeof(MAIN_MENU) / sizeof(char*));
+            currentMenuSelection = 0;
+            updateMenu(currentMenuSelection);
+			mainState = MENU_MAIN;
+   		    break;
+   		default:
+   		    break;
+   		}
+    	keyEvent = NO_KEY;
+		break;
+	default:
+		break;
+	}
 }
 
 /*
@@ -440,30 +514,15 @@ void initAC()
             if (ac.init())        // Try to initialize with captured signal
             {
                 matchCnt = 0;
-                extra = ac.extraSample();        // Check if extra signals needed
-                if (extra == 0)                  // Initialization successful and no extra sampling is needed
-                {
-                    saveInitInfo();
-                    showInitOKMsg();
-                    retState = TEMP_CTL;
-                    l2State = STEP6;
-                }
-                else if ((extra > 0) && (extra < 4))        // Need additional captures
-                {
-                    showInitScrn3(EXTRA_KEY[extra - 1]);        // Show what button to press next
-                    drawOKButton();
-                    l2State = STEP7;
-                }
-                else
-                {
-                    showInitFailMsg();        // Initialization failed
-                    l2State = STEP5;
-                }
+                saveInitInfo();
+                showInitOKMsg();
+                retState = TEMP_CTL;
+                l2State = STEP5;
             }
             else
             {
                 showInitFailMsg();        // Initialization failed
-                l2State = STEP5;
+                l2State = STEP4;
             }
         }
         if (keyEvent == LEFT_KEY_SHORT)
@@ -475,25 +534,6 @@ void initAC()
         break;
 
     case STEP4:
-        // Capture additional IR signals for complete AC control
-        if (ac.signalCaptured())
-        {
-            ac.stopCapture();
-            ac.saveExtra();
-            saveInitInfo();
-            showInitOKMsg();
-            retState = TEMP_CTL;
-            l2State = STEP6;
-        }
-        if (keyEvent == LEFT_KEY_SHORT)
-        {
-            mainState = START;
-            l2State = STEP1;
-        }
-        keyEvent = NO_KEY;
-        break;
-
-    case STEP5:
         // Handle initialization failure
         if (keyEvent == RIGHT_KEY_SHORT)
         {
@@ -508,30 +548,22 @@ void initAC()
         keyEvent = NO_KEY;
         break;
 
-    case STEP6:
+    case STEP5:
         // Wait for OK button to continue
         if (keyEvent == RIGHT_KEY_SHORT)
         {
+			if (ac.isCelsius())
+			{
+				temp = 25;
+			}
+			else
+			{
+				temp = 78;
+			}
             acDispUpdate();
             drawTempButtons();
             l2State = STEP1;
             mainState = retState;
-        }
-        keyEvent = NO_KEY;
-        break;
-
-    case STEP7:
-        // Wait for OK button then start extra capture
-        if (keyEvent == RIGHT_KEY_SHORT)
-        {
-            showInitScrn2(EXTRA_KEY[extra - 1]);
-            ac.startCapture();
-            l2State = STEP4;
-        }
-        if (keyEvent == LEFT_KEY_SHORT)
-        {
-            mainState = START;
-            l2State = STEP1;
         }
         keyEvent = NO_KEY;
         break;
@@ -552,7 +584,7 @@ void tempCtrl()
         // Decrease temperature (only for AUTO, COOL, HEAT modes)
         if (mode <= 2)
         {
-            if (temp > 16)
+            if ((ac.isCelsius() && temp > 16) || (!ac.isCelsius() && temp > 60))
             {
                 temp--;
             }
@@ -567,7 +599,7 @@ void tempCtrl()
         // Increase temperature (only for AUTO, COOL, HEAT modes)
         if (mode <= 2)
         {
-            if (temp < 30)
+            if ((ac.isCelsius() && temp < 30) || (!ac.isCelsius() && temp < 88))
             {
                 temp++;
             }
@@ -589,7 +621,14 @@ void tempCtrl()
         if (mode == 3)        // Entering DRY mode
         {
             savedTemp = temp;        // Save current temperature
-            temp = 16;               // DRY mode typically uses fixed low temp
+			if (ac.isCelsius())
+			{
+            	temp = 16;               // DRY mode typically uses fixed low temp
+			}
+			else
+			{
+				temp = 60;
+			}
         }
         remoteBtn = 2;        // MODE button
         irSending = true;
@@ -754,25 +793,29 @@ void mainMenu()
         // Select menu item
         switch (currentMenuSelection)
         {
-        case 0:        // Pairing (Init.)
+		case 0:		   // Set temp unit
+			mainState = SET_UNIT;
+			l2State = STEP1;
+			break;
+        case 1:        // Pairing (Init.)
             mainState = INIT;
             l2State = STEP1;
             break;
-        case 1:        // Find Next Match
+        case 2:        // Find Next Match
             l2State = STEP1;
             mainState = FIND_NEXT;
             break;
-        case 2:        // Load Pre-def
+        case 3:        // Load Pre-def
             mainState = MENU_PREDEF;
             showMenu(preDefs, ac.cntPredef());
             currentMenuSelection = 0;
             updateMenu(0);
             break;
-        case 3:        // IR command parsing
+        case 4:        // IR command parsing
             mainState = IR_PARSING;
             l2State = STEP1;
             break;
-        case 4:        // Exit
+        case 5:        // Exit
             mainState = START;
             l2State = STEP1;
             break;
@@ -812,7 +855,14 @@ void predefMenu()
             clearCentralArea();
             mainState = TEMP_CTL;
             // Reset to default values
-            temp = 25;
+			if (ac.isCelsius())
+			{
+            	temp = 25;
+			}
+			else
+			{
+				temp = 78;
+			}
             mode = 1;
             fan = 1;
             mainState = TEMP_CTL;
@@ -838,6 +888,8 @@ void predefMenu()
  */
 void findNext()
 {
+	bool	unitC;
+
     switch (l2State)
     {
     case STEP1:
@@ -849,6 +901,7 @@ void findNext()
                 // Save the new match count
                 savedData.begin("bc7215 init", false);
                 savedData.putBytes("matchIndex", &matchCnt, sizeof(matchCnt));
+				savedData.putBytes("tempUnit", &unitC, sizeof(bool));
                 savedData.end();
                 showNextMatchScrn(matchCnt);
                 retState = TEMP_CTL;
@@ -935,8 +988,10 @@ void irParsing()
             P = -1;
             if (ac.parse(T, M, F, P))
             {
-                if ((T < 16) || (T > 30))
+                if ((ac.isCelsius() && ((T < 16) || (T > 30))) || (!ac.isCelsius() && ((T < 60) || (T > 88))))
+				{
                     T = -1;
+				}
                 if ((M < 0) || (M > 4))
                 {
                     M = 5;
@@ -961,7 +1016,7 @@ void irParsing()
             else
             {
                 Serial.println("Parsing failed");
-                drawParsingResult(-1, -1, -1, -1);
+                drawParsingResult(-1, 5, 4, 3);
             }
             ac.startCapture();
         }
@@ -984,19 +1039,15 @@ void irParsing()
  */
 void saveInitInfo()
 {
+	bool	unitC;
+
     formatPkt = ac.getFormatPkt();
     dataPkt = ac.getDataPkt();
     savedData.begin("bc7215 init", false);
     savedData.putBytes("format", formatPkt, sizeof(bc7215FormatPkt_t));
     savedData.putBytes("data", dataPkt, sizeof(bc7215DataMaxPkt_t));
     savedData.putBytes("matchIndex", &matchCnt, sizeof(matchCnt));
-
-    // Save extra IR signals if available
-    if (ac.extraSample())
-    {
-        savedData.putBytes("extraFormat", ac.getExtra().body.msg.fmt, sizeof(bc7215FormatPkt_t));
-        savedData.putBytes("extraData", (bc7215DataMaxPkt_t*)ac.getExtra().body.msg.datPkt, sizeof(bc7215DataMaxPkt_t));
-    }
+	savedData.putBytes("tempUnit", &unitC, sizeof(bool));
     savedData.end();
 }
 
@@ -1189,7 +1240,7 @@ void processMqtt(char* topic, byte* payload, unsigned int length)
 
     if (strcmp(topic, TEMP_TOPIC) == 0)        // Temperature control
     {
-        if ((value >= 16) && (value <= 30))
+        if ((ac.isCelsius() && ((value >= 16) && (value <= 30))) || (!ac.isCelsius() && ((value >= 60) && (value <= 88))))
         {
             temp = value;
             Serial.print("New temp = ");
@@ -1487,6 +1538,7 @@ void clearNumberArea() { tft.fillRect(0, L.numberAreaY, SCREEN_W, L.numberAreaH,
 void drawBigNumber(const String& value)
 {
     clearNumberArea();
+	tft.setTextDatum(TC_DATUM);
     tft.setTextFont(8);        // Large font for temperature
     tft.setTextSize(1);
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
@@ -1616,6 +1668,26 @@ void drawOnOffButtons()
 }
 
 /*
+ * Draw Temperature symbol(°C/°F)
+ */
+void drawUnit()
+{
+	tft.drawCircle(SCREEN_W-18, BADGE_Y+BADGE_HEIGHT+4, 2, COLOR_TEXT);
+	tft.setTextDatum(TL_DATUM);
+	tft.setTextFont(2);
+	tft.setTextSize(1);
+	tft.setTextColor(COLOR_TEXT, COLOR_BG);
+	if (ac.isCelsius())
+	{
+		tft.drawString("C", SCREEN_W-12, BADGE_Y+BADGE_HEIGHT+4);
+	}
+	else
+	{
+		tft.drawString("F", SCREEN_W-12, BADGE_Y+BADGE_HEIGHT+4);
+	}
+}
+
+/*
  * Clear left button area
  */
 void clearLeftBtn() { tft.fillRoundRect(4, 178, 61, 58, 8, COLOR_BG); }
@@ -1698,7 +1770,14 @@ void showInitScrn1()
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
     tft.drawString("   A/C Pairing", SCREEN_W / 2, L.numberAreaY);
     tft.drawString("Set your remote to", SCREEN_W / 2, L.numberAreaY + tft.fontHeight());
-    tft.drawString("Cooling mode, 25'C", SCREEN_W / 2, L.numberAreaY + tft.fontHeight() * 3);
+	if (ac.isCelsius())
+	{
+    	tft.drawString("Cooling mode, 25'C", SCREEN_W / 2, L.numberAreaY + tft.fontHeight() * 3);
+	}
+	else
+	{
+    	tft.drawString("Cooling mode, 78'F", SCREEN_W / 2, L.numberAreaY + tft.fontHeight() * 3);
+	}
     tft.drawString("Press OK when ready", SCREEN_W / 2, L.numberAreaY + tft.fontHeight() * 5);
 }
 
@@ -1874,7 +1953,7 @@ void drawParsingResult(int8_t temp, int8_t mode, int8_t fan, int8_t power)
 
     int drawX = blockX + 4;
     int startY = L.numberAreaY + h * 2;
-    if ((temp >= 16) && (temp <= 30))
+    if (temp >= 0)
     {
         tft.drawNumber(temp, drawX + 8, startY);
     }

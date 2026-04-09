@@ -74,3 +74,6 @@ parse	KEYWORD2
 getDataPkt	KEYWORD2
 getFormatPkt	KEYWORD2
 getLibVer	KEYWORD2
+setFahrenheit	KEYWORD2
+setCelsius		KEYWORD2
+isCelsius	KEYWORD2

@@ -93,7 +93,7 @@ typedef struct {
 const char* bc7215_ac_get_ver(void);
 
 /**
- * @brief Initialize the BC7215 AC control library
+ * @brief Initialize the BC7215 AC control library (Celsius)
  * @param status Status byte from the data packet
  * @param dataPktCool25C Reference data packet for cooling at 25°C
  * @return true if initialization successful, false otherwise
@@ -103,6 +103,16 @@ const char* bc7215_ac_get_ver(void);
 bool bc7215_ac_init(uint8_t status, const bc7215DataVarPkt_t* dataPktCool25C);
 
 /**
+ * @brief Initialize the BC7215 AC control library (Fahrenheit)
+ * @param status Status byte from the data packet
+ * @param dataPktCool25C Reference data packet for cooling at 78°F
+ * @return true if initialization successful, false otherwise
+ * @note This function must be called before using any other library functions
+ * @warning Ensure the dataPktCool25C parameter points to valid data
+ */
+bool bc7215_ac_init_f(uint8_t status, const bc7215DataVarPkt_t* dataPktCool78F);
+
+/**
  * @brief Find the next available AC configuration
  * @return true if next configuration found, false if no more configurations available
  * @note This function is used to iterate through available AC configurations
@@ -110,7 +120,7 @@ bool bc7215_ac_init(uint8_t status, const bc7215DataVarPkt_t* dataPktCool25C);
 bool bc7215_ac_find_next(void);
 
 /**
- * @brief Set AC parameters and generate corresponding data packet
+ * @brief Set AC parameters and generate corresponding data packet (Celsius)
  * @param temp Target temperature (0 to 14, referring 16°C to 30°C)
  * @param mode Operating mode (see MODE_* definitions)
  * @param fan Fan speed setting (see FAN_* definitions)
@@ -119,6 +129,17 @@ bool bc7215_ac_find_next(void);
  * @note The returned packet contains the IR signal data for the specified settings
  */
 const bc7215DataVarPkt_t* bc7215_ac_set(int8_t temp, int8_t mode, int8_t fan, int8_t key);
+
+/**
+ * @brief Set AC parameters and generate corresponding data packet (Fahrenheit)
+ * @param temp Target Fahrenheit temperature (0 to 28, referring 60°F to 88°F)
+ * @param mode Operating mode (see MODE_* definitions)
+ * @param fan Fan speed setting (see FAN_* definitions)
+ * @param key Control key being pressed (see KEY_* definitions)
+ * @return Pointer to generated data packet
+ * @note The returned packet contains the IR signal data for the specified settings
+ */
+const bc7215DataVarPkt_t* bc7215_ac_set_f(int8_t ftemp, int8_t mode, int8_t fan, int8_t key);
 
 /**
  * @brief Generate data packet to turn AC on
@@ -142,12 +163,20 @@ const bc7215DataVarPkt_t* bc7215_ac_off(void);
 uint8_t bc7215_ac_predefined_cnt(void);
 
 /**
- * @brief Get predefined AC configuration data by index
+ * @brief Get predefined AC configuration data by index (Celsius)
  * @param index Index of the predefined configuration (0 to bc7215_ac_predefined_cnt()-1)
  * @return Pointer to data packet for the specified configuration, NULL if index invalid
  * @warning Ensure index is within valid range to avoid undefined behavior
  */
 const bc7215DataVarPkt_t* bc7215_ac_predefined_data(uint8_t index);
+
+/**
+ * @brief Get predefined AC configuration data by index (Fahrenheit)
+ * @param index Index of the predefined configuration (0 to bc7215_ac_predefined_cnt()-1)
+ * @return Pointer to data packet for the specified configuration, NULL if index invalid
+ * @warning Ensure index is within valid range to avoid undefined behavior
+ */
+const bc7215DataVarPkt_t* bc7215_ac_predefined_data_f(uint8_t index);
 
 /**
  * @brief Get predefined AC configuration format packet by index
@@ -219,7 +248,7 @@ const bc7215FormatPkt_t* bc7215_ac_get_base_fmt(void);
 const bc7215DataVarPkt_t* bc7215_ac_get_base_data(void);
 
 /**
- * @brief Initialize the BC7215 AC control library with multiple message configurations
+ * @brief Initialize the BC7215 AC control library with multiple message configurations (Celsius)
  * @param msgCnt Number of combined messages in the msgs array
  * @param msgs Array of combined messages containing format and data pointers
  * @param segGap Gap value between segments in the IR signal timing, 0 for default 60ms
@@ -231,7 +260,19 @@ const bc7215DataVarPkt_t* bc7215_ac_get_base_data(void);
 bool bc7215_ac_init2(uint8_t msgCnt, const bc7215CombinedMsg_t msgs[], uint8_t segGap);
 
 /**
- * @brief Parse IR data packet and extract AC control parameters
+ * @brief Initialize the BC7215 AC control library with multiple message configurations (Fahrenheit)
+ * @param msgCnt Number of combined messages in the msgs array
+ * @param msgs Array of combined messages containing format and data pointers
+ * @param segGap Gap value between segments in the IR signal timing, 0 for default 60ms
+ * @return true if initialization successful, false otherwise
+ * @note This is an enhanced version of bc7215_ac_init() that supports multi-segment protocols
+ * @warning Ensure the msgs array contains valid combined message pointers
+ * @warning Ensure msgCnt accurately reflects the number of elements in msgs array
+ */
+bool bc7215_ac_init2_f(uint8_t msgCnt, const bc7215CombinedMsg_t msgs[], uint8_t segGap);
+
+/**
+ * @brief Parse IR data packet and extract AC control parameters (Celsius)
  * @details This function analyzes the current data packet and extracts the air conditioner
  *          control parameters including temperature, operating mode, fan speed, and power state.
  *          The parsed values are written to the variables pointed to by the provided parameters.
@@ -247,6 +288,24 @@ bool bc7215_ac_init2(uint8_t msgCnt, const bc7215CombinedMsg_t msgs[], uint8_t s
  * @warning The function may fail if no valid data packet is available for parsing
  */
 bool bc7215_ac_parse(int8_t* temp, int8_t* mode, int8_t* fan, int8_t* power);
+
+/**
+ * @brief Parse IR data packet and extract AC control parameters (Fahrenheit)
+ * @details This function analyzes the current data packet and extracts the air conditioner
+ *          control parameters including temperature, operating mode, fan speed, and power state.
+ *          The parsed values are written to the variables pointed to by the provided parameters.
+ * @param ftemp Pointer to variable where parsed Fahrenheit temperature will be stored (0 to 28, referring 60°F to 88°F)
+ * @param mode Pointer to variable where parsed operating mode will be stored (see MODE_* definitions)
+ * @param fan Pointer to variable where parsed fan speed will be stored (see FAN_* definitions)
+ * @param power Pointer to variable where parsed power state will be stored (0 = off, 1 = on, 2 = toggle)
+ * @return true if parsing successful and parameters extracted, false if parsing failed
+ * @note The library must be initialized.
+ * @note The data to be parsed must be loaded via bc7215_ac_replace_base() before this function is called.
+ * @note All pointer parameters must point to valid memory locations
+ * @warning Ensure all pointer parameters are not NULL to avoid undefined behavior
+ * @warning The function may fail if no valid data packet is available for parsing
+ */
+bool bc7215_ac_parse_f(int8_t* ftemp, int8_t* mode, int8_t* fan, int8_t* power);
 
 
 #ifdef __cplusplus

@@ -25,9 +25,12 @@
 #include <bc7215ac.h>
 
 // WiFi和设备配置 - 请替换为您自己的值
-//#define MY_WIFI_SSID     "******"                                      // 替换为您的WiFi名称
-//#define MY_WIFI_PASSWORD "*************"                               // 替换为您的WiFi密码
-//#define MY_UUID          "********-****-****-****-************"        // 使用UUID生成器创建唯一设备ID
+// #define MY_WIFI_SSID     "你的WiFi名称"    // 替换为您的WiFi名称
+// #define MY_WIFI_PASSWORD "你的WiFi密码"    // 替换为您的WiFi密码
+// #define MY_UUID          "你的UUID"        // 使用UUID生成器创建唯一设备ID
+#define MY_WIFI_SSID     "jj-ome"                                      // Replace with your WiFi SSID
+#define MY_WIFI_PASSWORD "jianjiao04238"                               // Replace with your WiFi password
+#define MY_UUID          "11741ad2-0f8c-4431-a49f-30a6d9cb3737"        // Use a UUID generator for unique device ID
 
 // 编译检查必要配置
 #if !defined(MY_WIFI_SSID) || !defined(MY_WIFI_PASSWORD) || !defined(MY_UUID)
@@ -99,8 +102,8 @@ struct Layout
 const String MODES[] = { " 自动 ", " 制冷 ", " 制热 ", " 除湿 ", " 送风 ", " -- " };        // 空调运行模式
 const String FANSPEED[] = { " 自动 ", " 低速 ", " 中速 ", " 高速 ", " -- " };               // 风速级别
 const String PWR_STATUS[] = { " 关 ", " 开 ", " 翻转 ", " -- " };
-const String EXTRA_KEY[] = { "温度+/-", "模式", "风速" };        // 需额外信号捕获的遥控器按键
-const char*  MAIN_MENU[] = { "采集并配对", "查找下一匹配", "加载预置协议", "红外解析", "退出" };
+const char*  MAIN_MENU[] = { "设置制式", "采集并配对", "查找下一匹配", "加载预置协议", "红外解析", "退出" };
+const char*  UNIT_MENU[] = { "°C 摄氏", "°F 华氏"};
 
 // ======= 状态机枚举 =======
 
@@ -108,6 +111,7 @@ const char*  MAIN_MENU[] = { "采集并配对", "查找下一匹配", "加载预
 enum L1_STATE
 {
     START,               // 初始启动状态
+	SET_UNIT,			 // 设置系统温度制式
     INIT,                // 空调库初始化
     TEMP_CTL,            // 温度控制模式（主要操作）
     ON_OFF_CTL,          // 电源开关控制
@@ -190,11 +194,9 @@ int           remoteBtn = 0;               // 最后按下的遥控器按钮 (0 
 const char**  menuItems;                   // 当前菜单项数组
 const char**  preDefs;                     // 预定义空调型号数组
 int           currentMenuSelection;        // 当前选中的菜单项
-bool          usingCelsius = true;         // 温度单位标志
 unsigned long startTime;                   // 通用计时器
 unsigned long wifiStartTime;               // wifi连接计时器
 unsigned long mqttStartTime;               // mqtt连接计时器
-int           extra;                       // 需要的额外红外信号
 int           savedTemp;                   // 临时温度存储
 int8_t        matchCnt;                    // 找到的空调协议匹配数
 bool          mqttCmd = false;             // 标识命令来自MQTT
@@ -235,12 +237,12 @@ void setup()
     }
 
     // 初始化状态变量
+    delay(100);
     mainState = START;
     l2State = STEP1;
     keyboardState = BOTH_RELEASED;
     keyEvent = NO_KEY;
     interval = 10;
-    delay(100);
 }
 
 void loop()
@@ -251,6 +253,9 @@ void loop()
     case START:
         powerup();        // 处理启动序列
         break;
+	case SET_UNIT:		  // 设置温度制式
+		setUnit();
+		break;
     case INIT:
         initAC();        // 处理空调库初始化
         break;
@@ -319,6 +324,8 @@ void loop()
  */
 void powerup()
 {
+	bool	isCelsius;
+
     switch (l2State)
     {
     case STEP1:
@@ -370,6 +377,16 @@ void powerup()
         savedData.getBytes("format", &irFormat, sizeof(bc7215FormatPkt_t));
         savedData.getBytes("data", &irData, sizeof(bc7215DataMaxPkt_t));
         savedData.getBytes("matchIndex", &matchCnt, sizeof(matchCnt));
+		savedData.getBytes("tempUnit", &isCelsius, sizeof(bool));
+
+		if (isCelsius)		// 首先设置系统制式
+		{
+			ac.setCelsius();
+		}
+		else
+		{
+			ac.setFahrenheit();
+		}
 
         // 尝试用保存的数据初始化空调
         if (ac.init(irData, irFormat))
@@ -389,16 +406,17 @@ void powerup()
                 }
             }
 
-            // 如果初始化成功，但需加载额外的格式信息
-            if (ac.extraSample())
-            {
-                savedData.getBytes("extraFormat", &irFormat, sizeof(bc7215FormatPkt_t));
-                savedData.getBytes("extraData", &irData, sizeof(bc7215DataMaxPkt_t));
-                ac.saveExtra(irData, irFormat);
-            }
 
             // 初始化默认空调设置
-            temp = 25;
+			drawUnit();
+			if (ac.isCelsius())
+			{
+            	temp = 25;
+			}
+			else
+			{
+				temp = 78;
+			}
             mode = 1;
             fan = 1;
             mainState = TEMP_CTL;
@@ -423,6 +441,64 @@ void powerup()
     default:
         break;
     }
+}
+
+/*
+ * 设置系统温度制式函数
+ * 从菜单设置温度制式
+ */
+void setUnit()
+{
+	uint8_t	newIndex;
+
+	switch (l2State)
+	{
+	case STEP1:		// 显示菜单
+            showMenu(UNIT_MENU, sizeof(UNIT_MENU) / sizeof(char*));
+            currentMenuSelection = 0;
+            updateMenu(currentMenuSelection);
+			l2State = STEP2;
+			break;
+	case STEP2:
+   		switch (keyEvent)
+   		{
+   		case LEFT_KEY_SHORT:		// 'SEL' 按钮选择菜单
+   		    // Navigate menu items
+   		    newIndex = currentMenuSelection + 1;
+   		    if (newIndex >= sizeof(UNIT_MENU) / sizeof(char*))
+   		    {
+   		        newIndex = 0;
+   		    }
+   		    updateMenu(newIndex);
+   		    break;
+
+   		case RIGHT_KEY_SHORT:		// 'OK' 按钮确认选择
+   		    // Select menu item
+   		    switch (currentMenuSelection)
+   		    {
+   			case 0:		// 设为摄氏制式
+				ac.setCelsius();
+   				break;
+   		    case 1:    // 设为华氏制式    
+				ac.setFahrenheit();
+   		        break;
+   		    default:
+   		        break;
+   		    }
+			drawUnit();
+            showMenu(MAIN_MENU, sizeof(MAIN_MENU) / sizeof(char*));
+            currentMenuSelection = 0;
+            updateMenu(currentMenuSelection);
+			mainState = MENU_MAIN;
+   		    break;
+   		default:
+   		    break;
+   		}
+    	keyEvent = NO_KEY;
+		break;
+	default:
+		break;
+	}
 }
 
 /*
@@ -463,33 +539,18 @@ void initAC()
         if (ac.signalCaptured())
         {
             ac.stopCapture();
-            if (ac.init())        // 使用采集到的数据进行配对
+            if (ac.init())        // 尝试用捕获的信号初始化
             {
                 matchCnt = 0;
-                extra = ac.extraSample();        // 检查是否需要额外采样
-                if (extra == 0)                  // 无需额外采样
-                {
-                    saveInitInfo();
-                    showInitOKMsg();
-                    retState = TEMP_CTL;
-                    l2State = STEP6;
-                }
-                else if ((extra > 0) && (extra < 4))        // 有按键需要额外采样
-                {
-                    showInitScrn3(EXTRA_KEY[extra - 1]);        // 显示需要采样的按键
-                    drawOKButton();
-                    l2State = STEP7;
-                }
-                else
-                {
-                    showInitFailMsg();        // 配对失败
-                    l2State = STEP5;
-                }
+                saveInitInfo();
+                showInitOKMsg();
+                retState = TEMP_CTL;
+                l2State = STEP5;
             }
             else
             {
-                showInitFailMsg();        // 配对失败
-                l2State = STEP5;
+                showInitFailMsg();        // 初始化失败
+                l2State = STEP4;
             }
         }
         if (keyEvent == LEFT_KEY_SHORT)
@@ -501,25 +562,6 @@ void initAC()
         break;
 
     case STEP4:
-        // 为完整的空调控制捕获额外的红外信号
-        if (ac.signalCaptured())
-        {
-            ac.stopCapture();
-            ac.saveExtra();
-            saveInitInfo();
-            showInitOKMsg();
-            retState = TEMP_CTL;
-            l2State = STEP6;
-        }
-        if (keyEvent == LEFT_KEY_SHORT)
-        {
-            mainState = START;
-            l2State = STEP1;
-        }
-        keyEvent = NO_KEY;
-        break;
-
-    case STEP5:
         // 处理初始化失败
         if (keyEvent == RIGHT_KEY_SHORT)
         {
@@ -534,30 +576,22 @@ void initAC()
         keyEvent = NO_KEY;
         break;
 
-    case STEP6:
-        // 等待确定按钮继续
+    case STEP5:
+        // 等待OK按键继续
         if (keyEvent == RIGHT_KEY_SHORT)
         {
+			if (ac.isCelsius())
+			{
+				temp = 25;
+			}
+			else
+			{
+				temp = 78;
+			}
             acDispUpdate();
             drawTempButtons();
             l2State = STEP1;
             mainState = retState;
-        }
-        keyEvent = NO_KEY;
-        break;
-
-    case STEP7:
-        // 等待确定按钮然后开始额外捕获
-        if (keyEvent == RIGHT_KEY_SHORT)
-        {
-            showInitScrn2(EXTRA_KEY[extra - 1]);
-            ac.startCapture();
-            l2State = STEP4;
-        }
-        if (keyEvent == LEFT_KEY_SHORT)
-        {
-            mainState = START;
-            l2State = STEP1;
         }
         keyEvent = NO_KEY;
         break;
@@ -578,7 +612,7 @@ void tempCtrl()
         // 降低温度（仅适用于自动、制冷、制热模式）
         if (mode <= 2)
         {
-            if (temp > 16)
+            if ((ac.isCelsius() && temp > 16) || (!ac.isCelsius() && temp > 60))
             {
                 temp--;
             }
@@ -593,7 +627,7 @@ void tempCtrl()
         // 提高温度（仅适用于自动、制冷、制热模式）
         if (mode <= 2)
         {
-            if (temp < 30)
+            if ((ac.isCelsius() && temp < 30) || (!ac.isCelsius() && temp < 88))
             {
                 temp++;
             }
@@ -778,25 +812,29 @@ void mainMenu()
         // 选择菜单项
         switch (currentMenuSelection)
         {
-        case 0:        // 捕获并初始化
+		case 0:		   // 设置温度制式
+			mainState = SET_UNIT;
+			l2State = STEP1;
+			break;
+        case 1:        // 捕获并初始化
             mainState = INIT;
             l2State = STEP1;
             break;
-        case 1:        // 查找下一匹配
+        case 2:        // 查找下一匹配
             l2State = STEP1;
             mainState = FIND_NEXT;
             break;
-        case 2:        // 加载预定义
+        case 3:        // 加载预定义
             mainState = MENU_PREDEF;
             showMenu(preDefs, ac.cntPredef());
             currentMenuSelection = 0;
             updateMenu(0);
             break;
-        case 3:        // 红外信号解析
+        case 4:        // 红外信号解析
             mainState = IR_PARSING;
             l2State = STEP1;
             break;
-        case 4:        // 退出菜单
+        case 5:        // 退出
             mainState = START;
             l2State = STEP1;
             break;
@@ -836,7 +874,14 @@ void predefMenu()
             clearCentralArea();
             mainState = TEMP_CTL;
             // 重置为默认值
-            temp = 25;
+			if (ac.isCelsius())
+			{
+            	temp = 25;
+			}
+			else
+			{
+				temp = 78;
+			}
             mode = 1;
             fan = 1;
             mainState = TEMP_CTL;
@@ -907,7 +952,8 @@ void irParsing()
             P = -1;
             if (ac.parse(T, M, F, P))
             {
-                if ((T < 16) || (T > 30))
+				Serial.printf("T:%d, M:%d, F:%d, P:%d\n", T, M, F, P);
+                if ((ac.isCelsius() && ((T < 16) || (T > 30))) || (!ac.isCelsius() && ((T < 60) || (T > 88))))
 				{
                     T = -1;
 				}
@@ -935,7 +981,7 @@ void irParsing()
             else
             {
                 Serial.println("Parsing failed");
-                drawParsingResult(-1, -1, -1, -1);
+                drawParsingResult(-1, 5, 4, 3);
             }
             ac.startCapture();
         }
@@ -958,6 +1004,8 @@ void irParsing()
  */
 void findNext()
 {
+	bool	unitC;
+
     switch (l2State)
     {
     case STEP1:
@@ -969,6 +1017,7 @@ void findNext()
                 // 保存新的匹配计数
                 savedData.begin("bc7215 init", false);
                 savedData.putBytes("matchIndex", &matchCnt, sizeof(matchCnt));
+				savedData.putBytes("tempUnit", &unitC, sizeof(bool));
                 savedData.end();
                 showNextMatchScrn(matchCnt);
                 retState = TEMP_CTL;
@@ -1010,19 +1059,15 @@ void findNext()
  */
 void saveInitInfo()
 {
+	bool	unitC;
+
     formatPkt = ac.getFormatPkt();
     dataPkt = ac.getDataPkt();
     savedData.begin("bc7215 init", false);
     savedData.putBytes("format", formatPkt, sizeof(bc7215FormatPkt_t));
     savedData.putBytes("data", dataPkt, sizeof(bc7215DataMaxPkt_t));
     savedData.putBytes("matchIndex", &matchCnt, sizeof(matchCnt));
-
-    // 如果必要，保存额外的红外数据和格式信息
-    if (ac.extraSample())
-    {
-        savedData.putBytes("extraFormat", ac.getExtra().body.msg.fmt, sizeof(bc7215FormatPkt_t));
-        savedData.putBytes("extraData", (bc7215DataMaxPkt_t*)ac.getExtra().body.msg.datPkt, sizeof(bc7215DataMaxPkt_t));
-    }
+	savedData.putBytes("tempUnit", &unitC, sizeof(bool));
     savedData.end();
 }
 
@@ -1215,7 +1260,7 @@ void processMqtt(char* topic, byte* payload, unsigned int length)
 
     if (strcmp(topic, TEMP_TOPIC) == 0)        // 温度控制
     {
-        if ((value >= 16) && (value <= 30))
+        if ((ac.isCelsius() && ((value >= 16) && (value <= 30))) || (!ac.isCelsius() && ((value >= 60) && (value <= 88))))
         {
             temp = value;
             Serial.print("新温度 = ");
@@ -1487,6 +1532,7 @@ void drawBigNumber(const String& value)
 {
     clearNumberArea();
     tft.unloadFont();
+	tft.setTextDatum(TC_DATUM);
     tft.setTextFont(8);        // 大数字所用字体
     tft.setTextSize(1);
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
@@ -1629,6 +1675,27 @@ void drawOnOffButtons()
 }
 
 /*
+ * 绘制温度符号(°C/°F)
+ */
+void drawUnit()
+{
+	tft.fillRect(SCREEN_W-12, BADGE_Y+BADGE_HEIGHT+4, 12, 16, COLOR_BG);
+	tft.drawCircle(SCREEN_W-18, BADGE_Y+BADGE_HEIGHT+4, 2, COLOR_TEXT);
+	tft.setTextDatum(TL_DATUM);
+	tft.setTextFont(2);
+	tft.setTextSize(1);
+	tft.setTextColor(COLOR_TEXT, COLOR_BG);
+	if (ac.isCelsius())
+	{
+		tft.drawString("C", SCREEN_W-12, BADGE_Y+BADGE_HEIGHT+4);
+	}
+	else
+	{
+		tft.drawString("F", SCREEN_W-12, BADGE_Y+BADGE_HEIGHT+4);
+	}
+}
+
+/*
  * 清除左按钮区域
  */
 void clearLeftBtn() { tft.fillRoundRect(4, 178, 61, 58, 8, COLOR_BG); }
@@ -1719,7 +1786,14 @@ void showInitScrn1()
     int y = L.numberAreaY + 4;
     tft.drawString("  配对空调配", SCREEN_W / 2, y);
     tft.drawString("将遥控器设置为", SCREEN_W / 2, y + tft.fontHeight());
-    tft.drawString("制冷模式 25°C", SCREEN_W / 2, y + tft.fontHeight() * 3);
+	if (ac.isCelsius())
+	{
+    	tft.drawString("制冷模式 25°C", SCREEN_W / 2, y + tft.fontHeight() * 3);
+	}
+	else
+	{
+    	tft.drawString("制冷模式 78°F", SCREEN_W / 2, y + tft.fontHeight() * 3);
+	}
     tft.drawString("准备好后按OK", SCREEN_W / 2, y + tft.fontHeight() * 5);
 }
 
@@ -1905,7 +1979,7 @@ void drawParsingResult(int8_t temp, int8_t mode, int8_t fan, int8_t power)
     // 我们只需要微调 X 偏移（+4）让文字不紧贴色块边缘
     int drawX = blockX + 4;
     int startY = L.numberAreaY + h * 2;
-    if ((temp >= 16) && (temp <= 30))
+    if (temp >= 0)
     {
         tft.drawNumber(temp, drawX + 8, startY);
     }

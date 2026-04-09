@@ -8,7 +8,13 @@
 
 * ##### Receiving IR to decode these information from the signal
 
-This library uses BC7215A chip as it's core functioning component and can let your Arduino control almost any air conditioner available on the market (see [**Supported Brand List**](./extras/doc/BC7215AC_supported_list.md)), and all runs locally with a small footprint, no online database is needed! The library leverages the BC7215A's ability to decode/transmit IR signal in arbitrary format, and can recognise and pair with any air conditioner with one click. 
+This library uses BC7215A chip as it's core functioning component and can let your Arduino control almost any air conditioner available on the market
+
+![](./extras/img/supported_list_en.png) 
+
+[Supported brands list](./extras/doc/Supported_ac_brand_list-en.pdf)
+
+It runs locally with a small footprint, no online database is needed! The library leverages the BC7215A's ability to decode/transmit IR signal in arbitrary format, and can recognise and pair with any air conditioner with one click. 
 
 **Relative Documents:**
 
