@@ -356,17 +356,20 @@ private:
 
 #if ENABLE_RECEIVING == 1
 
-	uint16_t bitLen;                            ///< Length of received data in bits
 	uint8_t circularBuffer[BC7215_BUFFER_SIZE]; ///< Circular buffer for received data
 
 	// Buffer management variables (size depends on buffer size)
 #if BC7215_BUFFER_SIZE > 255
+	struct pktInfo_t
+	{
+		uint16_t  bitLen;
+		uint16_t  start;
+		uint16_t  end;
+		uint16_t  count;
+	} curPktInfo, prePktInfo;
 	uint16_t       startPos;        ///< Start position in circular buffer
-	uint16_t       datStartPos;     ///< Data start position in buffer
 	uint16_t       lastWritingPos;  ///< Last write position in buffer
-	uint16_t       datEndPos;       ///< Data end position in buffer
 	uint16_t       byteCount;       ///< Total bytes in buffer
-	uint16_t       datCount;        ///< Data bytes count
 	
 	/**
 	 * Read byte from circular buffer (backward direction)
@@ -384,12 +387,16 @@ private:
 	 */
 	uint8_t bufRead(uint16_t pos, uint16_t n);
 #else
+	struct pktInfo_t
+	{
+		uint16_t bitLen;
+		uint8_t  start;
+		uint8_t  end;
+		uint8_t  count;
+	} curPktInfo, prePktInfo;
 	uint8_t        startPos;        ///< Start position in circular buffer
-	uint8_t        datStartPos;     ///< Data start position in buffer
 	uint8_t        lastWritingPos;  ///< Last write position in buffer
-	uint8_t        datEndPos;       ///< Data end position in buffer
 	uint8_t        byteCount;       ///< Total bytes in buffer
-	uint8_t        datCount;        ///< Data bytes count
 	
 	/**
 	 * Read byte from circular buffer (backward direction)

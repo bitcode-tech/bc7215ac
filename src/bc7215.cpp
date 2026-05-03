@@ -86,7 +86,7 @@ uint16_t BC7215::getLen()
 	statusUpdate();
     if (bc7215Status.dataPktReady)
     {
-        return bitLen;
+        return curPktInfo.bitLen;
     }
     else
     {
@@ -99,7 +99,7 @@ uint16_t BC7215::dpketSize()
 	statusUpdate();
     if (bc7215Status.dataPktReady)
     {
-        return (bitLen + 7) / 8 + 2;
+        return (curPktInfo.bitLen + 7) / 8 + 2;
     }
     else
     {
@@ -109,23 +109,25 @@ uint16_t BC7215::dpketSize()
 
 uint8_t BC7215::getData(bc7215DataVarPkt_t* target)
 {
-#	if BC7215_BUFFER_SIZE > 255
 	uint16_t i;
-#	else
-	uint8_t i;
-#	endif
-	statusUpdate();
+	uint16_t rtnBitLen;
     uint8_t status = 0xff;
+	statusUpdate();
+	rtnBitLen = 8;
     if (bc7215Status.dataPktReady)
     {
-        status = bufBackRead(datEndPos, 2);
-        target->bitLen = bitLen;
-        for (i = 0; i < datCount - 3; i++)
+        status = bufBackRead(curPktInfo.end, 2);
+        if (curPktInfo.bitLen < BC7215_MAX_RX_DATA_SIZE * 8)
         {
-            target->data[i] = bufRead(datStartPos, i);
+            rtnBitLen = curPktInfo.bitLen;
+        }
+        for (i = 0; i < (rtnBitLen+7)/8; i++)
+        {
+            target->data[i] = bufRead(curPktInfo.start, i);
         }
         bc7215Status.dataPktReady = 0;
     }
+	target->bitLen = rtnBitLen;
 	return status;
 }
 
@@ -142,15 +144,18 @@ uint16_t BC7215::getRaw(void* addr, uint16_t size)
 	if (bc7215Status.dataPktReady)
 	{
 	    bc7215Status.dataPktReady = 0;
-	    if (size > (bitLen + 7) / 8)
+	    if (size > (curPktInfo.bitLen + 7) / 8)
 	    {
-	        size = (bitLen + 7) / 8;
+	        size = (curPktInfo.bitLen + 7) / 8;
 	    }
 
-	    for (i = 0; i < size; i++)
-	    {
-	        *((uint8_t*)addr + i) = bufRead(datStartPos, i);
-	    }
+		if (size != 0)
+		{
+	    	for (i = 0; i < size; i++)
+	    	{
+	    	    *((uint8_t*)addr + i) = bufRead(curPktInfo.start, i);
+	    	}
+		}
 	}
 	else
 	{
@@ -506,6 +511,7 @@ void BC7215::processData(uint8_t data)
             {
                 if (previousData == 0x7a)        // if 0x7a 0x7a is the mark of format packet
                 {
+					curPktInfo = prePktInfo;		// just received packet was a format packet, restore saved data packet info
                     bc7215Status.dataPktReady = 0;
 #    if ENABLE_FORMAT == 1
                     if (byteCount == 33)        // check the packet size
@@ -513,29 +519,26 @@ void BC7215::processData(uint8_t data)
                         bc7215Status.formatPktReady = 1;
                     }
 #    endif
-                    if ((byteCount + datCount <= BC7215_BUFFER_SIZE) && (!(bufBackRead(datEndPos, 2) & 0x80)))
+                    if ((byteCount + curPktInfo.count <= BC7215_BUFFER_SIZE) && ((curPktInfo.bitLen+7)/8+3 == curPktInfo.count))
                     // if the format packet is not over writting the data packet and there is no error
                     {
-                        bitLen = ((uint16_t)bufBackRead(datEndPos, 0) << 8) | bufBackRead(datEndPos, 1);
                         bc7215Status.dataPktReady = 1;
                     }
                 }
                 else        // if this is the first 0x7a received
                 {
-                    if (!(bufBackRead(lastWritingPos, 2) & 0x80))
-                    // if the buffer is not overflew and 'bit7' of the status byte the is not set (no error)
-                    {
-                        temp16 = ((uint16_t)bufBackRead(lastWritingPos, 0) << 8) | bufBackRead(lastWritingPos, 1);
-                        // get the bit count of the data packet
+                    prePktInfo = curPktInfo;        // new packet received, backup previous packet information
+                    curPktInfo.start = startPos;
+                    curPktInfo.end = lastWritingPos;
+                    curPktInfo.count = byteCount;
+                    curPktInfo.bitLen
+                        = ((uint16_t)bufBackRead(lastWritingPos, 0) << 8) | bufBackRead(lastWritingPos, 1);
+                    /* get the bit count of the data packet */
 
-                        if ((temp16 + 7) / 8 + 3 == byteCount)        // if the byte count of received packet is correct
-                        {
-                            bitLen = temp16;        // save the bitLen
-                            bc7215Status.dataPktReady = 1;
-                            datStartPos = startPos;
-                            datEndPos = lastWritingPos;
-                            datCount = byteCount;
-                        }
+                    if ((curPktInfo.bitLen + 7) / 8 + 3
+                        == byteCount) /* if the byte count of received packet is correct */
+                    {
+                        bc7215Status.dataPktReady = 1;
                     }
                 }
             }
@@ -549,7 +552,6 @@ void BC7215::processData(uint8_t data)
                 bc7215Status.pktStarted = 1;        // clear new packet indicator
                 bc7215Status.overLap = 0;
                 byteCount = 0;
-                bitLen = 0;
                 bc7215Status.dataPktReady = 0;        // new data is coming, clear dataPktReady and formatPktReady flags
                 bc7215Status.formatPktReady = 0;
                 startPos = lastWritingPos + 1;        // save start buffer position of the packet

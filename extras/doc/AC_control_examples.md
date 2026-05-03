@@ -10,6 +10,8 @@ The **BC7215AC Air Conditioner Remote Control Library** provides 5 example appli
 - NANO 33 IoT Serial Monitor
 - ESP32 LCD  
 - ESP32 MQTT  
+- ESP32 Home Assistant
+- ESP8266 Home Assistant
 
 The **Serial Monitor version** is the simplest demo. It only requires connecting any ESP8266 or ESP32 Arduino development board to the BC7215A IR transceiver module, then using the Arduino IDE’s built-in Serial Monitor as the human–machine interface to control the air conditioner.  
 
@@ -23,7 +25,7 @@ The examples use ESP8266 NodeMCU boards and ESP32 TTGO T-Display boards. The har
 
 - GPIO5 → BC7215A TX  
 - GPIO16 → BC7215A RX  
-- GPIO0 → BC7215A MOD  
+- GPIO14 → BC7215A MOD  
 - GPIO4 → BC7215A BUSY  
 - 3.3V → BC7215A VCC  
 
@@ -219,3 +221,28 @@ When it's connected, setup the topics and and it's ready to go.
 Whenever an IR command is sent (via button or MQTT), or in the parsing mode when an IR signal is received, the new AC state is reported to the MQTT server. Clients subscribed to the **report topic** will receive updates:  
 
 `BC7215A/<UUID>/var/report`  
+
+# ESP32 Home Assistant
+
+Based on the ESP32 MQTT Edition, this version modifies the MQTT parameters to meet Home Assistant (HA) requirements. When used with Home Assistant and its MQTT integration, the device supports automatic discovery without any manual configuration. This enables a plug-and-play integration into the HA ecosystem for air conditioner control.
+Once the device is powered on and successfully paired with the air conditioner, the AC controller entity will automatically appear within Home Assistant.
+
+![](../img/ha_bc7215_ac_controller.png)
+
+The firmware is configured to use a local network (LAN) MQTT server. For Home Assistant users, a local server is the optimal choice as it eliminates the need for complex account credentials and encryption settings while maintaining security within the local network. The Home Assistant Edition retains all operations of the standard ESP32 MQTT version, simply adjusting the MQTT server settings and topics to align with HA specifications.
+
+# ESP8266 Home Assistant
+
+Based on the ESP32 version, this edition removes the LCD display and the physical button array. It utilizes a single onboard button for re-pairing:
+**Pairing Process:** Long-press the button for 2 seconds to enter pairing mode. The user then points an IR remote at the receiver and sends a "25°C, Cooling Mode" signal.
+Since there is no display, a single onboard LED serves as the status indicator:
+
+- Slow Flashing: Not connected to the BC7215A chip.
+
+- Fast Flashing: Pairing mode; waiting to receive an IR signal.
+
+- Short Flash every 3s: Successfully paired; in command parsing mode, waiting for IR signals.
+
+Due to the lack of a user interface, several interactive operations—such as "Select Temperature Unit," "Next Match," and "Use Predefined Data"—have been omitted. However, this simplified version is sufficient for the vast majority of use cases. 
+
+Since the device lacks local physical controls, it enters parsing mode immediately after pairing. If a user operates the air conditioner using a standard IR remote, the latest AC status will be synchronized to Home Assistant automatically.

@@ -39,6 +39,8 @@
 - NANO 33 IoT串口监视器版
 - ESP32 LCD 版
 - ESP32 MQTT 物联网版
+- ESP32 Home Assistant例程
+- ESP8266 Home Assistant例程
 
 建议从串口监视器示例开始，熟悉库函数，然后进阶到 LCD 和 MQTT 版本，实现更高级的集成。
 
@@ -51,6 +53,8 @@
 "**ESP32 LCD 版**" 利用 LILYGO TTGO T-Display 的板载按钮和 LCD 显示屏提供用户友好的界面，演示了无需依赖计算机的控制方式。
 
 "**ESP32 MQTT 在线物联网版**"在 LCD 版本的基础上扩展了网络功能，允许基于 MQTT 的远程控制和状态报告，适用于物联网应用。
+
+“**ESP32/8266 Home Assistant例程**" 上电后可自动接入Home Assistant而无需任何配置，可以立刻通过HA控制你的空调。
 
 请参阅 [**空调控制应用示例**](./空调遥控应用示例.md)（markdown 格式）了解示例的详细信息。如果您更喜欢 PDF 格式，请查看 [**PDF 版本**](./空调遥控库应用示例.pdf)。
 

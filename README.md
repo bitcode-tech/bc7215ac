@@ -39,6 +39,8 @@ Though the library user's manual (pdf) available in the document directory provi
 - ****Arduino Nano 33 IoT Serial Monitor Version****
 - ****ESP32 LCD Version****
 - ****ESP32 MQTT online IoT Version****
+- **ESP32 Home Assistant Example**
+- **ESP8266 Home Assistant Example**
 
 It's recommended to start with the serial monitor examples to get familiar with the library functions, then progress to LCD and MQTT versions for more advanced integrations.
 
@@ -51,6 +53,8 @@ It's recommended to start with the serial monitor examples to get familiar with 
 "**ESP32 LCD Version**" utilize the LILYGO T-Display's onboard buttons and LCD for a user-friendly interface, demonstrating control without relying on a computer.
 
 "**ESP32 MQTT IoT Version**" extend the LCD version with networking capabilities, allowing MQTT-based remote control and status reporting for IoT applications.
+
+"**ESP32/8266 Home Assistant Example**" Can promote itself to Home Assistant and get Integrated automatically, then you can control the AC in HA immediately.
 
 Please see [**A/C Control Examples**](./extras/doc/AC_control_examples.md) (markdown) for detailed information about the examples. Or the [**PDF version**](./extras/doc/AC_control_examples.pdf) if you prefer.
 

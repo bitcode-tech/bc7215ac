@@ -50,3 +50,8 @@ V7.0	2026-03-30  1. Fahrenheit dedicated functions:
 					2. Extra sampling is no more needed.
 					3. Supports more protocols.
 					4. Added some Fahrenheit specific protocols.
+
+V7.1	2026-05-03	1. Integrate bc7215 driver library V4.2.
+					2. Improved Fahrenheit parsing accuracy.
+					3. Improved example code.
+					4. More Fahrenheit dedicated protocol support.
