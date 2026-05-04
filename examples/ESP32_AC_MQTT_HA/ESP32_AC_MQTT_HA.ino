@@ -27,7 +27,7 @@
 // WiFi and device configuration - Replace with your own values
 //#define MY_WIFI_SSID     "******"                                      // Replace with your WiFi SSID
 //#define MY_WIFI_PASSWORD "*************"                               // Replace with your WiFi password
-//#define MY_MQTT_IP	   "***.***.***.***";                            // Mosquitto Server LAN address
+//#define MY_MQTT_IP	 "***.***.***.***";        					   // Mosquitto Server LAN address
 #define MY_UUID "bc7215_ac_01"        // Use a UUID generator for unique device ID
 #define HA_BASE "home/ac/bc7215"
 
@@ -87,7 +87,8 @@ const char*    HA_DISCOVERY_INFO_C = R"(
 		"manufacturer": "DIY",
 		"model": "ESP32_BC7215_AC"
 	}
-})";
+}
+)";
 const char*    HA_DISCOVERY_INFO_F = R"(
 {
 	"name": "Bedrood AC",
@@ -115,7 +116,8 @@ const char*    HA_DISCOVERY_INFO_F = R"(
 		"manufacturer": "DIY",
 		"model": "ESP32_BC7215_AC"
 	}
-})";
+}
+)";
 
 // ======= Display Constants (Portrait 135x240) =======
 #define SCREEN_W 135
@@ -455,6 +457,10 @@ void powerup()
             mode = 1;
             fan = 1;
             mainState = TEMP_CTL;
+            if (mqttState == CONNECTED)
+            {
+                mqttOnlineAction();
+            }
 
             // Display initial interface
             drawBigNumber(String(temp));
@@ -622,6 +628,10 @@ void initAC()
             else
             {
                 temp = 78;
+            }
+            if (mqttState == CONNECTED)
+            {
+                mqttOnlineAction();
             }
             acDispUpdate();
             drawTempButtons();
@@ -931,6 +941,10 @@ void predefMenu()
             mode = 1;
             fan = 1;
             mainState = TEMP_CTL;
+            if (mqttState == CONNECTED)
+            {
+                mqttOnlineAction();
+            }
             drawBigNumber(String(temp));
             drawModeLabel(mode);
             drawFanLabel(fan);
@@ -1101,11 +1115,11 @@ void irParsing()
                 drawParsingResult(T, M, F, P);
                 // if (mqttState == CONNECTED)
                 //{
-                //    // Publish current status to MQTT
-                //    String s = "Temp=" + String(T) + ", Mode=" + MODES[M] + ", Fan=" + FANSPEED[F]
-                //        + ", Power=" + PWR_STATUS[P];
-                //    mqtt.publish(REPORT_TOPIC, s.c_str());
-                //}
+                //     // Publish current status to MQTT
+                //     String s = "Temp=" + String(T) + ", Mode=" + MODES[M] + ", Fan=" + FANSPEED[F]
+                //         + ", Power=" + PWR_STATUS[P];
+                //     mqtt.publish(REPORT_TOPIC, s.c_str());
+                // }
             }
             else
             {
@@ -1137,6 +1151,7 @@ void saveInitInfo()
 
     formatPkt = ac.getFormatPkt();
     dataPkt = ac.getDataPkt();
+    unitC = ac.isCelsius();
     savedData.begin("bc7215 init", false);
     savedData.putBytes("format", formatPkt, sizeof(bc7215FormatPkt_t));
     savedData.putBytes("data", dataPkt, sizeof(bc7215DataMaxPkt_t));
@@ -1260,8 +1275,8 @@ void mqttConnect()
         Serial.println("MQTT connection 1st attempt");
         if (mqtt.connect(MQTT_CLIENT_ID, NULL, NULL, MQTT_LWT, 0, true, "offline"))
         {
-            mqttOnlineAction();        // connected
             mqttState = CONNECTED;
+            mqttOnlineAction();        // connected
         }
         else
         {
@@ -1271,8 +1286,8 @@ void mqttConnect()
             Serial.println("MQTT connection 2nd attempt");
             if (mqtt.connect(MQTT_CLIENT_ID, NULL, NULL, MQTT_LWT, 0, true, "offline"))
             {
-                mqttOnlineAction();
                 mqttState = CONNECTED;
+                mqttOnlineAction();
             }
             else
             {
@@ -1310,10 +1325,12 @@ void mqttOnlineAction()
     if (ac.isCelsius())
     {
         result = mqtt.publish(HA_DISCOVERY_TOPIC, HA_DISCOVERY_INFO_C, true);
+        Serial.println("Publish Celsius profile");
     }
     else
     {
         result = mqtt.publish(HA_DISCOVERY_TOPIC, HA_DISCOVERY_INFO_F, true);
+        Serial.println("Publish Fahrenheit profile");
     }
     if (result)
     {

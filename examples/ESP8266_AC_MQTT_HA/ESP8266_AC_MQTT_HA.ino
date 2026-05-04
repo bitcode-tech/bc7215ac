@@ -273,6 +273,9 @@ void setup()
     // Initial state
     mainState = START;
     l2State   = STEP1;
+
+	ac.setCelsius();
+	// ac.setFahrenheit();		// use this line instead if your AC is Fahrenheit.
 }
 
 void loop()
