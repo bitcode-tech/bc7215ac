@@ -2,6 +2,8 @@
 
 [\[English\]](../../README.md)
 
+本库另有适用于通用单片机的 C 语言版本: [https://github.com/bitcode-tech/bc7215_ac_lib](https://github.com/bitcode-tech/bc7215_ac_lib)
+
 **本库的2大功能：**
 
 * ##### 离线发送红外信号控制空调的温度、模式、风力及电源
