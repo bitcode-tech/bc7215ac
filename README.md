@@ -2,6 +2,8 @@
 
 [[简体中文](./extras/doc/README_CN.md)]
 
+There's also a C version of this library for generic micro-controllers: [https://github.com/bitcode-tech/bc7215_ac_lib](https://github.com/bitcode-tech/bc7215_ac_lib)
+
 ****2 major functionalities of this library:****
 
 * ##### Sending IR to control Temp, Mode, Fan & Power of an A/C
