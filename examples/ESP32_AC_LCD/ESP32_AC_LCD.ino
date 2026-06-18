@@ -949,11 +949,16 @@ void saveInitInfo()
 	bool	unitC;
 
 	unitC = ac.isCelsius();
-    formatPkt = ac.getFormatPkt();
-    dataPkt = ac.getDataPkt();
+    irFormat = *ac.getFormatPkt();
+    irData.bitLen = ac.getDataPkt()->bitLen;
+	memcpy(irData.data, ac.getDataPkt()->data, (irData.bitLen+7)/8);
+	if (ac.sampleStatus[0]&0x40)		// if sample data is reversed
+	{
+		irFormat.signature.inByte |= 0x40;	// save REV bit in format
+	}
     savedData.begin("bc7215 init", false);
-    savedData.putBytes("format", formatPkt, sizeof(bc7215FormatPkt_t));
-    savedData.putBytes("data", dataPkt, sizeof(bc7215DataMaxPkt_t));
+    savedData.putBytes("format", &irFormat, sizeof(bc7215FormatPkt_t));
+    savedData.putBytes("data", &irData, sizeof(bc7215DataMaxPkt_t));
     savedData.putBytes("matchIndex", &matchCnt, sizeof(matchCnt));
 	savedData.putBytes("tempUnit", &unitC, sizeof(bool));
     savedData.end();

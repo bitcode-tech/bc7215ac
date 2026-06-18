@@ -3,10 +3,6 @@
 BC7215AC::BC7215AC(BC7215& bc7215Chip)
     : bc7215(bc7215Chip)
 {
-	for (int i=0; i<4; i++)
-	{
-		rcvdMessage[i].bitLen = 0;		// bitLen in rcvdMessages are always 0
-	}
     bc7215.setTx();
     initOK = false;
 	useFahrenheit = false;
@@ -54,8 +50,6 @@ bool BC7215AC::signalCaptured()
 		{
         	bc7215.getFormat(sampleFormat[sampleCount]);
         	sampleStatus[sampleCount] = bc7215.getData(sampleData[sampleCount]);
-			rcvdMessage[sampleCount].body.msg.fmt = &sampleFormat[sampleCount];
-			rcvdMessage[sampleCount].body.msg.datPkt = reinterpret_cast<const bc7215DataVarPkt_t*>(&sampleData[sampleCount]);
 			sampleCount++;
 		}
 		isCapturing = true;
@@ -139,15 +133,17 @@ bool BC7215AC::init()
 
 bool BC7215AC::init(const bc7215DataMaxPkt_t& data, const bc7215FormatPkt_t& format)
 {
-    rcvdMessage[0].body.msg.datPkt = reinterpret_cast<const bc7215DataVarPkt_t*>(&data);
-    rcvdMessage[0].body.msg.fmt = &format;
+	sampleData[0] = data;
+	sampleFormat[0] = format;
+	sampleStatus[0] = format.signature.inByte;
+	sampleFormat[0].signature.inByte &= 0x3f;
 	if (useFahrenheit)
 	{
-		initOK = bc7215_ac_init_f(format.signature.inByte, reinterpret_cast<const bc7215DataVarPkt_t*>(&rcvdMessage[0]));
+		initOK = bc7215_ac_init_f(sampleStatus[0], reinterpret_cast<const bc7215DataVarPkt_t*>(&rcvdMessage[0]));
 	}
 	else
 	{
-		initOK = bc7215_ac_init(format.signature.inByte, reinterpret_cast<const bc7215DataVarPkt_t*>(&rcvdMessage[0]));
+		initOK = bc7215_ac_init(sampleStatus[0], reinterpret_cast<const bc7215DataVarPkt_t*>(&rcvdMessage[0]));
 	}
 	return initOK;
 }
@@ -180,13 +176,16 @@ bool BC7215AC::initPredef(uint8_t index)
     {
 		if (useFahrenheit)
 		{
-			memcpy(&sampleData[0], bc7215_ac_predefined_data_f(index), (bc7215_ac_predefined_data_f(index)->bitLen+7)/8+2);
+			sampleData[0].bitLen = bc7215_ac_predefined_data_f(index)->bitLen;
+			memcpy(sampleData[0].data, bc7215_ac_predefined_data_f(index)->data, (sampleData[0].bitLen+7)/8);
 		}
 		else
 		{
-			memcpy(&sampleData[0], bc7215_ac_predefined_data(index), (bc7215_ac_predefined_data(index)->bitLen+7)/8+2);
+			sampleData[0].bitLen = bc7215_ac_predefined_data(index)->bitLen;
+			memcpy(sampleData[0].data, bc7215_ac_predefined_data(index)->data, (sampleData[0].bitLen+7)/8);
 		}
 		memcpy(&sampleFormat[0], bc7215_ac_predefined_fmt(index), 33);
+		sampleStatus[0] = sampleFormat[0].signature.inByte;
 		
        	initOK = init(sampleData[0], sampleFormat[0]);
     }

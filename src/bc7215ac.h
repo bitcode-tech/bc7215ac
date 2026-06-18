@@ -73,7 +73,12 @@ public:
 
 private:
     BC7215&             bc7215;
-    bc7215CombinedMsg_t rcvdMessage[4];
+    const bc7215CombinedMsg_t rcvdMessage[4] = {
+		{.bitLen = 0, .body = {.msg = {.fmt = &sampleFormat[0], .datPkt = reinterpret_cast<bc7215DataVarPkt_t*>(&sampleData[0])}}},
+		{.bitLen = 0, .body = {.msg = {.fmt = &sampleFormat[1], .datPkt = reinterpret_cast<bc7215DataVarPkt_t*>(&sampleData[1])}}},
+		{.bitLen = 0, .body = {.msg = {.fmt = &sampleFormat[2], .datPkt = reinterpret_cast<bc7215DataVarPkt_t*>(&sampleData[2])}}},
+		{.bitLen = 0, .body = {.msg = {.fmt = &sampleFormat[3], .datPkt = reinterpret_cast<bc7215DataVarPkt_t*>(&sampleData[3])}}}
+	};
 	unsigned long		timerStartTime;
 	bool				isCapturing;
 	bool				useFahrenheit;			// is system temperature Fahrenheit

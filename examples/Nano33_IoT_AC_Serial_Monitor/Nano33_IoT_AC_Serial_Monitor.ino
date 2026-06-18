@@ -481,12 +481,13 @@ void backupJob()
     switch (l2State)
     {
     case STEP1:
-        formatPkt = ac.getFormatPkt();
-        dataPkt = ac.getDataPkt();
+        irFormat = *ac.getFormatPkt();
+    	irData.bitLen = ac.getDataPkt()->bitLen;
+		memcpy(irData.data, ac.getDataPkt()->data, (irData.bitLen+7)/8);
 
         BC7215Store config;
-        config.format = *formatPkt;
-        config.data = *((bc7215DataMaxPkt_t*)dataPkt);
+        config.format = irFormat;
+        config.data = irData;
         config.valid = true;
 		config.unit = ac.isCelsius();
         storage.write(config);        // Save structure to Flash
