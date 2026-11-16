@@ -200,6 +200,7 @@ bool          mqttCmd = false;             // 标识命令来自MQTT
 bool          irSending = false;           // 标识红外正在发射
 
 // BC7215数据结构
+uint8_t					  irStatus;			// 红外数据状态字
 const bc7215DataVarPkt_t* dataPkt;          // 红外数据包指针
 const bc7215FormatPkt_t*  formatPkt;        // 红外格式包指针
 bc7215DataMaxPkt_t        irData;           // 获取的红外数据存储
@@ -373,6 +374,7 @@ void powerup()
         savedData.begin("bc7215 init", true);
         savedData.getBytes("format", &irFormat, sizeof(bc7215FormatPkt_t));
         savedData.getBytes("data", &irData, sizeof(bc7215DataMaxPkt_t));
+		savedData.getBytes("status", &irStatus, sizeof(irStatus));
         savedData.getBytes("matchIndex", &matchCnt, sizeof(matchCnt));
 		savedData.getBytes("tempUnit", &isCelsius, sizeof(bool));
 
@@ -386,7 +388,7 @@ void powerup()
 		}
 
         // 尝试用保存的数据初始化空调
-        if (ac.init(irData, irFormat))
+        if (ac.init(irStatus, irData, irFormat))
         {
             // 如果有多个匹配，导航到正确的那个
             if (matchCnt > 0)
@@ -398,7 +400,7 @@ void powerup()
                 }
                 if (!result)        // 如果找不到那个匹配，使用原始的
                 {
-                    ac.init(irData, irFormat);
+                    ac.init(irStatus, irData, irFormat);
                     matchCnt = 0;
                 }
             }
@@ -520,7 +522,7 @@ void initAC()
         {
             clearRightBtn();
             showInitScrn2("<风速>");        // 显示捕获指导
-            ac.startCapture();              // 开始红外信号捕获
+            ac.startCapture(1);              // 开始红外信号捕获
             l2State = STEP3;
         }
         if (keyEvent == LEFT_KEY_SHORT)
@@ -646,7 +648,14 @@ void tempCtrl()
         if (mode == 3)        // 进入除湿模式
         {
             savedTemp = temp;        // 保存当前温度
-            temp = 16;               // 除湿模式通常使用固定低温
+			if (ac.isCelsius())
+			{
+            	temp = 16;               // DRY mode typically uses fixed low temp
+			}
+			else
+			{
+				temp = 60;
+			}
         }
         remoteBtn = 2;        // 模式按钮
         irSending = true;
@@ -932,7 +941,7 @@ void irParsing()
             drawEscButton();
             retState = START;
             l2State = STEP3;
-            ac.startCapture();
+            ac.startCapture(0);
         }
         keyEvent = NO_KEY;
         break;
@@ -942,7 +951,7 @@ void irParsing()
         {
             ac.stopCapture();
             Serial.print("Sample Count=");
-            Serial.println(ac.sampleCount);
+            Serial.println(ac.datPktCnt);
             T = -1;
             M = -1;
             F = -1;
@@ -980,7 +989,7 @@ void irParsing()
                 Serial.println("Parsing failed");
                 drawParsingResult(-1, 5, 4, 3);
             }
-            ac.startCapture();
+            ac.startCapture(0);
         }
         if (keyEvent == LEFT_KEY_SHORT)
         {
@@ -1059,16 +1068,13 @@ void saveInitInfo()
 	bool	unitC;
 
 	unitC = ac.isCelsius();
-    irFormat = *ac.getFormatPkt();
-    irData.bitLen = ac.getDataPkt()->bitLen;
-	memcpy(irData.data, ac.getDataPkt()->data, (irData.bitLen+7)/8);
-	if (ac.sampleStatus[0]&0x40)		// if sample data is reversed
-	{
-		irFormat.signature.inByte |= 0x40;	// save REV bit in format
-	}
+    formatPkt = ac.getFormatPkt();
+    dataPkt = ac.getDataPkt();
+	irStatus = ac.statusByte();
     savedData.begin("bc7215 init", false);
-    savedData.putBytes("format", &irFormat, sizeof(bc7215FormatPkt_t));
-    savedData.putBytes("data", &irData, sizeof(bc7215DataMaxPkt_t));
+    savedData.putBytes("format", formatPkt, sizeof(bc7215FormatPkt_t));
+    savedData.putBytes("data", dataPkt, sizeof(bc7215DataMaxPkt_t));
+	savedData.putBytes("status", &irStatus, sizeof(irStatus));
     savedData.putBytes("matchIndex", &matchCnt, sizeof(matchCnt));
 	savedData.putBytes("tempUnit", &unitC, sizeof(bool));
     savedData.end();

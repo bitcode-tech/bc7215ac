@@ -131,6 +131,7 @@ int8_t        matchCnt;                    // Number of AC protocol matches foun
 bool          irSending = false;           // Flag indicating IR is transmitting
 
 // BC7215 data structures
+uint8_t					  irStatus;			// IR data packet status byte
 const bc7215DataVarPkt_t* dataPkt;          // IR data packet pointer
 const bc7215FormatPkt_t*  formatPkt;        // IR format packet pointer
 bc7215DataMaxPkt_t        irData;           // Storage for fetched IR data
@@ -281,6 +282,7 @@ void powerup()
         savedData.begin("bc7215 init", true);
         savedData.getBytes("format", &irFormat, sizeof(bc7215FormatPkt_t));
         savedData.getBytes("data", &irData, sizeof(bc7215DataMaxPkt_t));
+		savedData.getBytes("status", &irStatus, sizeof(irStatus));
         savedData.getBytes("matchIndex", &matchCnt, sizeof(matchCnt));
 		savedData.getBytes("tempUnit", &isCelsius, sizeof(bool));
 
@@ -293,7 +295,7 @@ void powerup()
 			ac.setFahrenheit();
 		}
         // Try to initialize AC with saved data
-        if (ac.init(irData, irFormat))
+        if (ac.init(irStatus, irData, irFormat))
         {
             // If we have multiple matches, navigate to the correct one
             if (matchCnt > 0)
@@ -305,7 +307,7 @@ void powerup()
                 }
                 if (!result)        // If can't find that match, use the original
                 {
-                    ac.init(irData, irFormat);
+                    ac.init(irStatus, irData, irFormat);
                     matchCnt = 0;
                 }
             }
@@ -428,7 +430,7 @@ void initAC()
         {
             clearRightBtn();
             showInitScrn2("<FAN SPEED>");        // Show capture instruction
-            ac.startCapture();                   // Begin IR signal capture
+            ac.startCapture(1);                   // Begin IR signal capture
             l2State = STEP3;
         }
         if (keyEvent == LEFT_KEY_SHORT)
@@ -885,7 +887,7 @@ void irParsing()
             drawEscButton();
             retState = START;
             l2State = STEP3;
-            ac.startCapture();
+            ac.startCapture(0);
         }
         keyEvent = NO_KEY;
         break;
@@ -895,7 +897,7 @@ void irParsing()
         {
             ac.stopCapture();
             Serial.print("Sample Count=");
-            Serial.println(ac.sampleCount);
+            Serial.println(ac.datPktCnt);
             T = -1;
             M = -1;
             F = -1;
@@ -925,7 +927,7 @@ void irParsing()
                 Serial.println("Parsing failed");
                 drawParsingResult(-1, 5, 4, 3);
             }
-            ac.startCapture();
+            ac.startCapture(0);
         }
         if (keyEvent == LEFT_KEY_SHORT)
         {
@@ -949,16 +951,13 @@ void saveInitInfo()
 	bool	unitC;
 
 	unitC = ac.isCelsius();
-    irFormat = *ac.getFormatPkt();
-    irData.bitLen = ac.getDataPkt()->bitLen;
-	memcpy(irData.data, ac.getDataPkt()->data, (irData.bitLen+7)/8);
-	if (ac.sampleStatus[0]&0x40)		// if sample data is reversed
-	{
-		irFormat.signature.inByte |= 0x40;	// save REV bit in format
-	}
+    formatPkt = ac.getFormatPkt();
+    dataPkt = ac.getDataPkt();
+	irStatus = ac.statusByte();
     savedData.begin("bc7215 init", false);
-    savedData.putBytes("format", &irFormat, sizeof(bc7215FormatPkt_t));
-    savedData.putBytes("data", &irData, sizeof(bc7215DataMaxPkt_t));
+    savedData.putBytes("format", formatPkt, sizeof(bc7215FormatPkt_t));
+    savedData.putBytes("data", dataPkt, sizeof(bc7215DataMaxPkt_t));
+	savedData.putBytes("status", &irStatus, sizeof(irStatus));
     savedData.putBytes("matchIndex", &matchCnt, sizeof(matchCnt));
 	savedData.putBytes("tempUnit", &unitC, sizeof(bool));
     savedData.end();

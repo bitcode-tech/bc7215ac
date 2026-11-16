@@ -65,13 +65,14 @@ const bc7215DataVarPkt_t* dataPkt;
 const bc7215FormatPkt_t* formatPkt;
 bc7215DataMaxPkt_t        irData;
 bc7215FormatPkt_t         irFormat;
+uint8_t					  irStatus;
 
 /*
  * Setup: 初始化 EEPROM，串口通信和 LED
  */
 void setup()
 {
-    EEPROM.begin(sizeof(bc7215FormatPkt_t) + sizeof(bc7215DataMaxPkt_t) + sizeof(bool));  // 初始化 EEPROM
+    EEPROM.begin(sizeof(bc7215FormatPkt_t) + sizeof(bc7215DataMaxPkt_t) + sizeof(uint8_t) + sizeof(bool));  // 初始化 EEPROM
     Serial.begin(115200);                           // 调试串口
     bc7215Serial.begin(19200, SERIAL_8N2, 25, 33);  // BC7215 串口, RX=GPIO25, TX=GPIO33
     mainState = CHOOSE_UNIT;
@@ -279,7 +280,7 @@ void captureJob()
         {
             Serial.println("现在请对准红外接收头按下遥控器上的 <风速> 按钮。\n"
                            "收到信号后将自动进行下一步...");
-            ac.startCapture();
+            ac.startCapture(1);
             l2State = STEP3;
         }
         break;
@@ -287,20 +288,40 @@ void captureJob()
         if (ac.signalCaptured())
         {
             ac.stopCapture();
-            if (ac.init())        // 尝试初始化
+            Serial.print("接收到 ");
+			Serial.print(ac.datPktCnt);
+			Serial.println(" 个数据包: ");
+            for (int i = 0; i < ac.datPktCnt; i++)
             {
-                Serial.print("接收到的数据: ");
-                dataPkt = ac.getDataPkt();
-                printData(dataPkt->data, (dataPkt->bitLen + 7) / 8);
-                Serial.println("使用接收到的数据初始化空调控制库 **成功** !!! ");
+                Serial.print("Pkt ");
+				Serial.print(i);
+				Serial.print(" : -- status=0x");
+				Serial.print(ac.sampleStatus[i], HEX);
+				Serial.print(", bitLen=");
+				Serial.print(ac.sampleData[i].bitLen);
+				Serial.print(",  ");
+                printData(&ac.sampleData[i].data, (ac.sampleData[i].bitLen + 7) / 8);
             }
-            else        // 初始化失败
-            {
-                Serial.println("使用接收到的数据初始化空调控制库 **失败**，"
-                               "\n可能是由于遥控器状态设置不正确或接收解码错误。请"
-                               "检查遥控器设置并重试");
-            }
-            l2State = STEP4;
+			Serial.println("");
+			if (ac.fmtPktCnt != 0)
+			{
+            	if (ac.init())        // 尝试初始化
+            	{
+            	    Serial.println("使用接收到的数据初始化空调控制库 **成功** !!! ");
+            	}
+            	else        // 初始化失败
+            	{
+            	    Serial.println("使用接收到的数据初始化空调控制库 **失败**，"
+            	                   "\n可能是由于遥控器状态设置不正确或接收解码错误。请"
+            	                   "检查遥控器设置并重试");
+            	}
+            	l2State = STEP4;
+			}
+			else
+			{
+				Serial.println("BC7215 未处于复合模式，现在重新尝试.");
+				ac.startCapture(1);
+			}
         }
         break;
     case STEP4:        // 采样完成提示
@@ -473,14 +494,26 @@ void backupJob()
         {
             formatPkt = ac.getFormatPkt();
             dataPkt = ac.getDataPkt();
+			irStatus = ac.statusByte();
             EEPROM.put(0, *formatPkt);                              // 保存数据到 EEPROM
             EEPROM.put(sizeof(bc7215FormatPkt_t), *((bc7215DataMaxPkt_t*)dataPkt));        // 保存格式到 EEPROM
-			EEPROM.put(sizeof(bc7215FormatPkt_t)+sizeof(bc7215DataMaxPkt_t), isCelsius);	// 保存制式到 EEPROM
+			EEPROM.put(sizeof(bc7215FormatPkt_t)+sizeof(bc7215DataMaxPkt_t), irStatus);		// 保存 status 到 EEPROM
+			EEPROM.put(sizeof(bc7215FormatPkt_t)+sizeof(bc7215DataMaxPkt_t)+sizeof(uint8_t), isCelsius);	// 保存制式到 EEPROM
             EEPROM.commit();
             Serial.println("\n格式信息: ");
             printData(formatPkt, sizeof(bc7215FormatPkt_t));
             Serial.print("数据: ");
             printData(dataPkt->data, (dataPkt->bitLen + 7) / 8);
+			Serial.print("状态字: 0x");
+			Serial.println(irStatus, HEX);
+			if (isCelsius)
+			{
+				Serial.println("制式: 摄氏");
+			}
+			else
+			{
+				Serial.println("制式: 华氏");
+			}
             Serial.println("信息已保存到 Flash 存储器");
         }
         else
@@ -514,21 +547,26 @@ void restoreJob()
     case STEP1:
         EEPROM.get(0, irFormat);         // 从 EEPROM 加载格式
         EEPROM.get(sizeof(bc7215FormatPkt_t), irData);          // 从 EEPROM 加载数据
-		EEPROM.get(sizeof(bc7215FormatPkt_t)+sizeof(bc7215DataMaxPkt_t), isCelsius);	// 从 EEPROM 加载制式
+		EEPROM.get(sizeof(bc7215FormatPkt_t)+sizeof(bc7215DataMaxPkt_t), irStatus);
+		EEPROM.get(sizeof(bc7215FormatPkt_t)+sizeof(bc7215DataMaxPkt_t)+sizeof(uint8_t), isCelsius);	// Load unit from EEPROM
         Serial.println("\n使用 Flash 中保存的配置");
         Serial.print("格式信息: ");
         printData(&irFormat, sizeof(bc7215FormatPkt_t));
         Serial.print("数据: ");
         printData(&irData.data, (irData.bitLen + 7) / 8);
+		Serial.print("Status: 0x");
+		Serial.println(irStatus, HEX);
 		if (isCelsius)
 		{
+			Serial.println("制式: 摄氏");
 			ac.setCelsius();
 		}
 		else
 		{
+			Serial.println("制式: 华氏");
 			ac.setFahrenheit();
 		}
-        if (ac.init(irData, irFormat))
+        if (ac.init(irStatus, irData, irFormat))
         {
             Serial.println("空调控制库初始化  ***成功*** !");
         }
@@ -648,7 +686,7 @@ void irParsingJob()
             Serial.println(
                 "\n\n正在接收红外信号并解析（解码）其中的温度、模式、风速和电源状态。");
             Serial.println("\nBC7215A 现处于接收模式，准备解码。键盘输入任意内容退出");
-            ac.startCapture();
+            ac.startCapture(0);
             clearSerialBuf();
             l2State = STEP2;
         }
@@ -693,7 +731,7 @@ void irParsingJob()
             {
                 Serial.println("解析失败");
             }
-            ac.startCapture();
+            ac.startCapture(0);
         }
         if (Serial.available())
         {

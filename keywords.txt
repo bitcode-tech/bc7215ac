@@ -77,3 +77,5 @@ getLibVer	KEYWORD2
 setFahrenheit	KEYWORD2
 setCelsius		KEYWORD2
 isCelsius	KEYWORD2
+statusByte	KEYWORD2
+replaceBase	KEYWORD2

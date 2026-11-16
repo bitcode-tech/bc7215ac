@@ -27,9 +27,9 @@
 // WiFi and device configuration - Replace with your own values
 //#define MY_WIFI_SSID     "******"                                      // Replace with your WiFi SSID
 //#define MY_WIFI_PASSWORD "*************"                               // Replace with your WiFi password
-//#define MY_MQTT_IP	 "***.***.***.***";        					   // Mosquitto Server LAN address
-#define MY_UUID "bc7215_ac_01"        // Use a UUID generator for unique device ID
-#define HA_BASE "home/ac/bc7215"
+//#define MY_MQTT_IP       "*************";                              // Mosquitto Server LAN address
+#define MY_UUID          "bc7215_ac_01"        // Use a UUID generator for unique device ID
+#define HA_BASE  "home/ac/bc7215"
 
 // Compilation check for required configuration
 #if !defined(MY_WIFI_SSID) || !defined(MY_WIFI_PASSWORD) || !defined(MY_UUID)
@@ -47,20 +47,20 @@
 // ========= WiFi & MQTT Configuration =============
 const char*    WIFI_SSID = MY_WIFI_SSID;
 const char*    WIFI_PASSWORD = MY_WIFI_PASSWORD;
-const char*    MQTT_HOST = MY_MQTT_IP;
+const char*    MQTT_HOST = MY_MQTT_IP; 
 const uint16_t MQTT_PORT = 1883;
 const char*    MQTT_CLIENT_ID = MY_UUID;
-const char*    MQTT_LWT = HA_BASE "/available";                        // Last Will Topic
+const char*    MQTT_LWT =  HA_BASE "/available";                // Last Will Topic
 const char*    TEMP_SET_TOPIC = HA_BASE "/temperature/set";            // Temperature control topic
-const char*    TEMP_STATE_TOPIC = HA_BASE "/temperature/state";        // Temperature report topic
-const char*    MODE_SET_TOPIC = HA_BASE "/mode/set";                   // AC mode control topic
-const char*    MODE_STATE_TOPIC = HA_BASE "/mode/state";               // AC mode report topic
-const char*    FAN_SET_TOPIC = HA_BASE "/fan/set";                     // Fan speed control topic
-const char*    FAN_STATE_TOPIC = HA_BASE "/fan/state";                 // Fan speed report topic
-const char*    HA_MODES[] = { "auto", "cool", "heat", "dry", "fan_only" };
-const char*    HA_FANSPEED[] = { "auto", "low", "medium", "high" };
-const char*    HA_DISCOVERY_TOPIC = "homeassistant/climate/bc7215_ac/config";
-const char*    HA_DISCOVERY_INFO_C = R"(
+const char*    TEMP_STATE_TOPIC = HA_BASE "/temperature/state";            // Temperature report topic
+const char*    MODE_SET_TOPIC = HA_BASE "/mode/set";            // AC mode control topic
+const char*    MODE_STATE_TOPIC = HA_BASE "/mode/state";            // AC mode report topic
+const char*    FAN_SET_TOPIC = HA_BASE "/fan/set";              // Fan speed control topic
+const char*    FAN_STATE_TOPIC = HA_BASE "/fan/state";              // Fan speed report topic
+const char*  HA_MODES[] = {"auto", "cool", "heat", "dry", "fan_only"};
+const char*  HA_FANSPEED[] = {"auto", "low", "medium", "high"};
+const char*		HA_DISCOVERY_TOPIC = "homeassistant/climate/bc7215_ac/config";
+const char*	HA_DISCOVERY_INFO_C = R"(
 {
 	"name": "Bedrood AC",
 	"unique_id": "bc7215_ac_01",
@@ -89,7 +89,7 @@ const char*    HA_DISCOVERY_INFO_C = R"(
 	}
 }
 )";
-const char*    HA_DISCOVERY_INFO_F = R"(
+const char*	HA_DISCOVERY_INFO_F = R"(
 {
 	"name": "Bedrood AC",
 	"unique_id": "bc7215_ac_01",
@@ -136,10 +136,9 @@ static const uint16_t COLOR_ACTIVE_BADGE = TFT_RED;             // Badge color w
 // ====== Display Content Arrays =======
 const String MODES[] = { " AUTO ", " COOL ", " HEAT ", " DRY ", " FAN ", " -- " };        // AC operation modes
 const String FANSPEED[] = { " AUTO ", " LOW ", " MED ", " HIGH ", " -- " };               // Fan speed levels
-const String PWR_STATUS[] = { " OFF ", " ON ", " TOG ", " -- " };                         // Power state in command
-const char*  MAIN_MENU[]
-    = { "Set Temp Unit", "Pair with A/C", "Find Next Match", "Load Pre-def", "Parse IR CMD", "Exit" };
-const char* UNIT_MENU[] = { "'C Celsius", "'F Fahrenheit" };
+const String PWR_STATUS[] = { " OFF ", " ON ", " TOG ", " -- " };        // Power state in command
+const char*  MAIN_MENU[] = { "Set Temp Unit", "Pair with A/C", "Find Next Match", "Load Pre-def", "Parse IR CMD", "Exit" };
+const char*  UNIT_MENU[] = { "'C Celsius", "'F Fahrenheit"};
 
 // ======= State Machine Enumerations =======
 
@@ -147,7 +146,7 @@ const char* UNIT_MENU[] = { "'C Celsius", "'F Fahrenheit" };
 enum L1_STATE
 {
     START,               // Initial startup state
-    SET_UNIT,            // Set system temperature unit
+	SET_UNIT,			 // Set system temperature unit
     INIT,                // AC initialization and IR learning
     TEMP_CTL,            // Set A/C to designated Temp, Mode, and Fan Speed via IR (main operation)
     ON_OFF_CTL,          // Power on/off control
@@ -237,9 +236,10 @@ int           savedTemp;                   // Temporary temperature storage
 int8_t        matchCnt;                    // Number of AC protocol matches found
 bool          mqttCmd = false;             // Flag indicating command came from MQTT
 bool          irSending = false;           // Flag indicating IR is transmitting
-bool          acPowerOn = true;
+bool			acPowerOn = true;
 
 // BC7215 data structures
+uint8_t					  irStatus;			// IR data packet status byte
 const bc7215DataVarPkt_t* dataPkt;          // IR data packet pointer
 const bc7215FormatPkt_t*  formatPkt;        // IR format packet pointer
 bc7215DataMaxPkt_t        irData;           // Storage for fetched IR data
@@ -289,9 +289,9 @@ void loop()
     case START:
         powerup();        // Handle startup sequence
         break;
-    case SET_UNIT:        // Setup temp unit
-        setUnit();
-        break;
+	case SET_UNIT:			// Setup temp unit
+		setUnit();
+		break;
     case INIT:
         initAC();        // Handle AC initialization and IR learning
         break;
@@ -361,15 +361,15 @@ void loop()
  */
 void powerup()
 {
-    bool isCelsius;
+	bool	isCelsius;
 
     switch (l2State)
     {
     case STEP1:
         // Clear screen and initialize BC7215
         tft.fillScreen(COLOR_BG);
-        bc7215Board.setRx();        // set to Rx mode first to wakeup BC7215A if it's in shutdown mode
-        delay(50);
+		bc7215Board.setRx();		// set to Rx mode first to wakeup BC7215A if it's in shutdown mode
+		delay(50);
         bc7215Board.setTx();        // Set BC7215 to transmit mode
         delay(50);
         bc7215Board.setShutDown();        // Put BC7215 in shutdown mode to check BC7215A presence
@@ -380,7 +380,7 @@ void powerup()
 
         // Initialize MQTT client
         mqtt.setServer(MQTT_HOST, MQTT_PORT);
-        mqtt.setBufferSize(1024);
+		mqtt.setBufferSize(1024);
         mqtt.setCallback(processMqtt);
         wifiStartTime = millis();
         wifiState = CONNECTING;
@@ -414,20 +414,21 @@ void powerup()
         savedData.begin("bc7215 init", true);
         savedData.getBytes("format", &irFormat, sizeof(bc7215FormatPkt_t));
         savedData.getBytes("data", &irData, sizeof(bc7215DataMaxPkt_t));
+		savedData.getBytes("status", &irStatus, sizeof(irStatus));
         savedData.getBytes("matchIndex", &matchCnt, sizeof(matchCnt));
-        savedData.getBytes("tempUnit", &isCelsius, sizeof(bool));
+		savedData.getBytes("tempUnit", &isCelsius, sizeof(bool));
 
-        if (isCelsius)        // set system temperature unit first
-        {
-            ac.setCelsius();
-        }
-        else
-        {
-            ac.setFahrenheit();
-        }
+		if (isCelsius)		// set system temperature unit first
+		{
+			ac.setCelsius();
+		}
+		else
+		{
+			ac.setFahrenheit();
+		}
 
         // Try to initialize AC with saved data
-        if (ac.init(irData, irFormat))
+        if (ac.init(irStatus, irData, irFormat))
         {
             // If we have multiple matches, navigate to the correct one
             if (matchCnt > 0)
@@ -439,21 +440,22 @@ void powerup()
                 }
                 if (!result)        // If can't find that match, use the original
                 {
-                    ac.init(irData, irFormat);
+                    ac.init(irStatus, irData, irFormat);
                     matchCnt = 0;
                 }
             }
 
+
             // Initialize default AC settings
-            drawUnit();
-            if (ac.isCelsius())
-            {
-                temp = 25;
-            }
-            else
-            {
-                temp = 78;
-            }
+			drawUnit();
+			if (ac.isCelsius())
+			{
+            	temp = 25;
+			}
+			else
+			{
+				temp = 78;
+			}
             mode = 1;
             fan = 1;
             mainState = TEMP_CTL;
@@ -484,62 +486,63 @@ void powerup()
     }
 }
 
+
 /*
  * Set system temp unit handler
  * Setup unit from menu
  */
 void setUnit()
 {
-    uint8_t newIndex;
+	uint8_t	newIndex;
 
-    switch (l2State)
-    {
-    case STEP1:        // Display Menu
-        showMenu(UNIT_MENU, sizeof(UNIT_MENU) / sizeof(char*));
-        currentMenuSelection = 0;
-        updateMenu(currentMenuSelection);
-        l2State = STEP2;
-        break;
-    case STEP2:
-        switch (keyEvent)
-        {
-        case LEFT_KEY_SHORT:        // 'SEL' button select menu item
-            // Navigate menu items
-            newIndex = currentMenuSelection + 1;
-            if (newIndex >= sizeof(UNIT_MENU) / sizeof(char*))
-            {
-                newIndex = 0;
-            }
-            updateMenu(newIndex);
-            break;
+	switch (l2State)
+	{
+	case STEP1:		// Display Menu
+            showMenu(UNIT_MENU, sizeof(UNIT_MENU) / sizeof(char*));
+            currentMenuSelection = 0;
+            updateMenu(currentMenuSelection);
+			l2State = STEP2;
+			break;
+	case STEP2:
+   		switch (keyEvent)
+   		{
+   		case LEFT_KEY_SHORT:	// 'SEL' button select menu item
+   		    // Navigate menu items
+   		    newIndex = currentMenuSelection + 1;
+   		    if (newIndex >= sizeof(UNIT_MENU) / sizeof(char*))
+   		    {
+   		        newIndex = 0;
+   		    }
+   		    updateMenu(newIndex);
+   		    break;
 
-        case RIGHT_KEY_SHORT:        // 'OK' button to confirm selection
-            // Select menu item
-            switch (currentMenuSelection)
-            {
-            case 0:        // switch to Celsius
-                ac.setCelsius();
-                break;
-            case 1:        // switch to Fahrenheit
-                ac.setFahrenheit();
-                break;
-            default:
-                break;
-            }
-            drawUnit();
+   		case RIGHT_KEY_SHORT:	// 'OK' button to confirm selection
+   		    // Select menu item
+   		    switch (currentMenuSelection)
+   		    {
+   			case 0:		// switch to Celsius
+				ac.setCelsius();
+   				break;
+   		    case 1:    // switch to Fahrenheit    
+				ac.setFahrenheit();
+   		        break;
+   		    default:
+   		        break;
+   		    }
+			drawUnit();
             showMenu(MAIN_MENU, sizeof(MAIN_MENU) / sizeof(char*));
             currentMenuSelection = 0;
             updateMenu(currentMenuSelection);
-            mainState = MENU_MAIN;
-            break;
-        default:
-            break;
-        }
-        keyEvent = NO_KEY;
-        break;
-    default:
-        break;
-    }
+			mainState = MENU_MAIN;
+   		    break;
+   		default:
+   		    break;
+   		}
+    	keyEvent = NO_KEY;
+		break;
+	default:
+		break;
+	}
 }
 
 /*
@@ -564,7 +567,7 @@ void initAC()
         {
             clearRightBtn();
             showInitScrn2("<FAN SPEED>");        // Show capture instruction
-            ac.startCapture();                   // Begin IR signal capture
+            ac.startCapture(1);                   // Begin IR signal capture
             l2State = STEP3;
         }
         if (keyEvent == LEFT_KEY_SHORT)
@@ -621,14 +624,14 @@ void initAC()
         // Wait for OK button to continue
         if (keyEvent == RIGHT_KEY_SHORT)
         {
-            if (ac.isCelsius())
-            {
-                temp = 25;
-            }
-            else
-            {
-                temp = 78;
-            }
+			if (ac.isCelsius())
+			{
+				temp = 25;
+			}
+			else
+			{
+				temp = 78;
+			}
             if (mqttState == CONNECTED)
             {
                 mqttOnlineAction();
@@ -694,14 +697,14 @@ void tempCtrl()
         if (mode == 3)        // Entering DRY mode
         {
             savedTemp = temp;        // Save current temperature
-            if (ac.isCelsius())
-            {
-                temp = 16;        // DRY mode typically uses fixed low temp
-            }
-            else
-            {
-                temp = 60;
-            }
+			if (ac.isCelsius())
+			{
+            	temp = 16;               // DRY mode typically uses fixed low temp
+			}
+			else
+			{
+				temp = 60;
+			}
         }
         remoteBtn = 2;        // MODE button
         irSending = true;
@@ -782,10 +785,10 @@ void acStatUpdate()
     if (mqttState == CONNECTED)
     {
         // Publish current status to MQTT
-        // String s = "Temp=" + String(temp) + ", Mode=" + MODES[mode] + ", Fan=" + FANSPEED[fan];
+        //String s = "Temp=" + String(temp) + ", Mode=" + MODES[mode] + ", Fan=" + FANSPEED[fan];
         mqtt.publish(TEMP_STATE_TOPIC, String(temp).c_str());
-        mqtt.publish(MODE_STATE_TOPIC, HA_MODES[mode]);
-        mqtt.publish(FAN_STATE_TOPIC, HA_FANSPEED[fan]);
+		mqtt.publish(MODE_STATE_TOPIC, HA_MODES[mode]);
+		mqtt.publish(FAN_STATE_TOPIC, HA_FANSPEED[fan]);
     }
 }
 
@@ -868,10 +871,10 @@ void mainMenu()
         // Select menu item
         switch (currentMenuSelection)
         {
-        case 0:        // Set temp unit
-            mainState = SET_UNIT;
-            l2State = STEP1;
-            break;
+		case 0:		   // Set temp unit
+			mainState = SET_UNIT;
+			l2State = STEP1;
+			break;
         case 1:        // Pairing (Init.)
             mainState = INIT;
             l2State = STEP1;
@@ -930,14 +933,14 @@ void predefMenu()
             clearCentralArea();
             mainState = TEMP_CTL;
             // Reset to default values
-            if (ac.isCelsius())
-            {
-                temp = 25;
-            }
-            else
-            {
-                temp = 78;
-            }
+			if (ac.isCelsius())
+			{
+            	temp = 25;
+			}
+			else
+			{
+				temp = 78;
+			}
             mode = 1;
             fan = 1;
             mainState = TEMP_CTL;
@@ -967,7 +970,7 @@ void predefMenu()
  */
 void findNext()
 {
-    bool unitC;
+	bool	unitC;
 
     switch (l2State)
     {
@@ -980,7 +983,7 @@ void findNext()
                 // Save the new match count
                 savedData.begin("bc7215 init", false);
                 savedData.putBytes("matchIndex", &matchCnt, sizeof(matchCnt));
-                savedData.putBytes("tempUnit", &unitC, sizeof(bool));
+				savedData.putBytes("tempUnit", &unitC, sizeof(bool));
                 savedData.end();
                 showNextMatchScrn(matchCnt);
                 retState = TEMP_CTL;
@@ -1050,7 +1053,7 @@ void irParsing()
             drawEscButton();
             retState = START;
             l2State = STEP3;
-            ac.startCapture();
+            ac.startCapture(0);
         }
         keyEvent = NO_KEY;
         break;
@@ -1060,7 +1063,7 @@ void irParsing()
         {
             ac.stopCapture();
             Serial.print("Sample Count=");
-            Serial.println(ac.sampleCount);
+            Serial.println(ac.datPktCnt);
             T = -1;
             M = -1;
             F = -1;
@@ -1068,65 +1071,65 @@ void irParsing()
             if (ac.parse(T, M, F, P))
             {
                 if ((ac.isCelsius() && ((T < 16) || (T > 30))) || (!ac.isCelsius() && ((T < 60) || (T > 88))))
-                {
+				{
                     T = -1;
-                }
-                else
-                {
-                    if (mqttState == CONNECTED)
-                    {
-                        mqtt.publish(TEMP_STATE_TOPIC, String(T).c_str());
-                    }
-                }
+				}
+				else
+				{
+                	if (mqttState == CONNECTED)
+                	{
+        				mqtt.publish(TEMP_STATE_TOPIC, String(T).c_str());
+					}
+				}	
                 if ((M < 0) || (M > 4))
                 {
                     M = 5;
                 }
-                else
-                {
-                    if (mqttState == CONNECTED)
-                    {
-                        mqtt.publish(MODE_STATE_TOPIC, HA_MODES[M]);
-                    }
-                }
+				else
+				{
+                	if (mqttState == CONNECTED)
+                	{
+						mqtt.publish(MODE_STATE_TOPIC, HA_MODES[M]);
+					}
+				}
                 if ((F < 0) || (F > 3))
                 {
                     F = 4;
                 }
-                else
-                {
-                    if (mqttState == CONNECTED)
-                    {
-                        mqtt.publish(FAN_STATE_TOPIC, HA_FANSPEED[F]);
-                    }
-                }
+				else
+				{
+                	if (mqttState == CONNECTED)
+                	{
+						mqtt.publish(FAN_STATE_TOPIC, HA_FANSPEED[F]);
+					}
+				}
                 if ((P < 0) || (P > 2))
                 {
                     P = 3;
                 }
-                else if (P == 0)
-                {
-                    if (mqttState == CONNECTED)
-                    {
-                        mqtt.publish(MODE_STATE_TOPIC, "off");
-                    }
-                }
-
+				else if (P == 0)
+				{
+                	if (mqttState == CONNECTED)
+                	{
+						mqtt.publish(MODE_STATE_TOPIC, "off");
+					}
+				}
+					
                 drawParsingResult(T, M, F, P);
-                // if (mqttState == CONNECTED)
+                //if (mqttState == CONNECTED)
                 //{
-                //     // Publish current status to MQTT
-                //     String s = "Temp=" + String(T) + ", Mode=" + MODES[M] + ", Fan=" + FANSPEED[F]
-                //         + ", Power=" + PWR_STATUS[P];
-                //     mqtt.publish(REPORT_TOPIC, s.c_str());
-                // }
+                //    // Publish current status to MQTT
+                //    String s = "Temp=" + String(T) + ", Mode=" + MODES[M] + ", Fan=" + FANSPEED[F]
+                //        + ", Power=" + PWR_STATUS[P];
+                //    mqtt.publish(REPORT_TOPIC, s.c_str());
+                //}
             }
             else
             {
                 Serial.println("Parsing failed");
                 drawParsingResult(-1, 5, 4, 3);
             }
-            ac.startCapture();
+            ac.startCapture(0);
         }
         if (keyEvent == LEFT_KEY_SHORT)
         {
@@ -1149,17 +1152,14 @@ void saveInitInfo()
 {
 	bool	unitC;
 
-	unitC = ac.isCelsius();
-    irFormat = *ac.getFormatPkt();
-    irData.bitLen = ac.getDataPkt()->bitLen;
-	memcpy(irData.data, ac.getDataPkt()->data, (irData.bitLen+7)/8);
-	if (ac.sampleStatus[0]&0x40)		// if sample data is reversed
-	{
-		irFormat.signature.inByte |= 0x40;	// save REV bit in format
-	}
+    formatPkt = ac.getFormatPkt();
+    dataPkt = ac.getDataPkt();
+    unitC = ac.isCelsius();
+	irStatus = ac.statusByte();
     savedData.begin("bc7215 init", false);
-    savedData.putBytes("format", &irFormat, sizeof(bc7215FormatPkt_t));
-    savedData.putBytes("data", &irData, sizeof(bc7215DataMaxPkt_t));
+    savedData.putBytes("format", formatPkt, sizeof(bc7215FormatPkt_t));
+    savedData.putBytes("data", dataPkt, sizeof(bc7215DataMaxPkt_t));
+	savedData.putBytes("status", &irStatus, sizeof(irStatus));
     savedData.putBytes("matchIndex", &matchCnt, sizeof(matchCnt));
 	savedData.putBytes("tempUnit", &unitC, sizeof(bool));
     savedData.end();
@@ -1294,10 +1294,10 @@ void mqttConnect()
                 mqttState = CONNECTED;
                 mqttOnlineAction();
             }
-            else
-            {
-                mqttState = UNAVAILABLE;
-            }
+			else
+			{
+        		mqttState = UNAVAILABLE;
+			}
         }
         break;
 
@@ -1325,27 +1325,27 @@ void mqttConnect()
  */
 void mqttOnlineAction()
 {
-    bool result;
+	bool result;
     Serial.println("MQTT connected");
-    if (ac.isCelsius())
-    {
-        result = mqtt.publish(HA_DISCOVERY_TOPIC, HA_DISCOVERY_INFO_C, true);
+	if (ac.isCelsius())
+	{
+		result = mqtt.publish(HA_DISCOVERY_TOPIC, HA_DISCOVERY_INFO_C, true);
         Serial.println("Publish Celsius profile");
-    }
-    else
-    {
-        result = mqtt.publish(HA_DISCOVERY_TOPIC, HA_DISCOVERY_INFO_F, true);
+	}
+	else
+	{
+		result = mqtt.publish(HA_DISCOVERY_TOPIC, HA_DISCOVERY_INFO_F, true);
         Serial.println("Publish Fahrenheit profile");
-    }
-    if (result)
-    {
-        Serial.println("HA Discovery Information Published.");
-    }
+	}
+	if (result)
+	{
+		Serial.println("HA Discovery Information Published.");
+	}
     mqtt.publish(MQTT_LWT, "online", true);        // Publish online status
-    if (ac.initOK)
-    {
-        acStatUpdate();
-    }
+	if (ac.initOK)
+	{
+		acStatUpdate();
+	}
 
     // Subscribe to control topics
     mqtt.subscribe(TEMP_SET_TOPIC);
@@ -1361,7 +1361,7 @@ void mqttOnlineAction()
  */
 void processMqtt(char* topic, byte* payload, unsigned int length)
 {
-    int i;
+	int i;
     Serial.println("MQTT topic: " + String(topic));
 
     // Convert payload to null-terminated string
@@ -1372,8 +1372,7 @@ void processMqtt(char* topic, byte* payload, unsigned int length)
 
     if (strcmp(topic, TEMP_SET_TOPIC) == 0)        // Temperature control
     {
-        if ((ac.isCelsius() && ((value >= 16) && (value <= 30)))
-            || (!ac.isCelsius() && ((value >= 60) && (value <= 88))))
+        if ((ac.isCelsius() && ((value >= 16) && (value <= 30))) || (!ac.isCelsius() && ((value >= 60) && (value <= 88))))
         {
             temp = value;
             Serial.print("New temp = ");
@@ -1390,8 +1389,8 @@ void processMqtt(char* topic, byte* payload, unsigned int length)
     }
     else if (strcmp(topic, MODE_SET_TOPIC) == 0)        // Mode control
     {
-        if (strcmp(val, "off") == 0)
-        {
+		if (strcmp(val, "off") == 0)
+		{
             Serial.println("Power off");
             if (mqttState == CONNECTED)
             {
@@ -1401,48 +1400,48 @@ void processMqtt(char* topic, byte* payload, unsigned int length)
             drawOnOffButtons();
             startTime = millis();
             ac.off();
-            acPowerOn = false;
+			acPowerOn = false;
             mainState = IR_SENDING;
             retState = ON_OFF_CTL;
         }
-        else
-        {
-            for (i = 0; i < 5; i++)
-            {
-                if (strcmp(val, HA_MODES[i]) == 0)
-                {
-                    mode = i;
-                    break;
-                }
-            }
-            if (acPowerOn == false)
-            {
-                ac.on();
-                acPowerOn = true;
-            }
-            else if (mode < 5)
-            {
-                Serial.print("New mode = ");
-                Serial.println(MODES[mode]);
-                acDispUpdate();
-            }
-            irSending = true;
-            mqttCmd = true;
-            acStatUpdate();
-        }
+		else
+		{
+			for (i=0; i<5; i++)
+			{
+				if (strcmp(val, HA_MODES[i]) == 0)
+				{
+					mode = i;
+					break;
+				}
+			}
+			if (acPowerOn == false)
+			{
+				ac.on();
+				acPowerOn = true;
+			}
+			else if (mode<5)
+			{
+            	Serial.print("New mode = ");
+            	Serial.println(MODES[mode]);
+            	acDispUpdate();
+			}
+           irSending = true;
+           mqttCmd = true;
+           acStatUpdate();
+		}
     }
     else if (strcmp(topic, FAN_SET_TOPIC) == 0)        // Fan speed control
     {
-        for (i = 0; i < 4; i++)
-        {
-            if (strcmp(val, HA_FANSPEED[i]) == 0)
-            {
-                fan = i;
-                break;
-            }
-        }
-        if (i < 4)
-        {
+		for (i=0; i<4; i++)
+		{
+			if (strcmp(val, HA_FANSPEED[i]) == 0)
+			{
+				fan = i;
+				break;
+			}
+		}
+		if (i<4)
+		{
             Serial.print("New fan = ");
             Serial.println(FANSPEED[fan]);
             irSending = true;
@@ -1663,7 +1662,7 @@ void clearNumberArea() { tft.fillRect(0, L.numberAreaY, SCREEN_W, L.numberAreaH,
 void drawBigNumber(const String& value)
 {
     clearNumberArea();
-    tft.setTextDatum(TC_DATUM);
+	tft.setTextDatum(TC_DATUM);
     tft.setTextFont(8);        // Large font for temperature
     tft.setTextSize(1);
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
@@ -1797,19 +1796,19 @@ void drawOnOffButtons()
  */
 void drawUnit()
 {
-    tft.drawCircle(SCREEN_W - 18, BADGE_Y + BADGE_HEIGHT + 4, 2, COLOR_TEXT);
-    tft.setTextDatum(TL_DATUM);
-    tft.setTextFont(2);
-    tft.setTextSize(1);
-    tft.setTextColor(COLOR_TEXT, COLOR_BG);
-    if (ac.isCelsius())
-    {
-        tft.drawString("C", SCREEN_W - 12, BADGE_Y + BADGE_HEIGHT + 4);
-    }
-    else
-    {
-        tft.drawString("F", SCREEN_W - 12, BADGE_Y + BADGE_HEIGHT + 4);
-    }
+	tft.drawCircle(SCREEN_W-18, BADGE_Y+BADGE_HEIGHT+4, 2, COLOR_TEXT);
+	tft.setTextDatum(TL_DATUM);
+	tft.setTextFont(2);
+	tft.setTextSize(1);
+	tft.setTextColor(COLOR_TEXT, COLOR_BG);
+	if (ac.isCelsius())
+	{
+		tft.drawString("C", SCREEN_W-12, BADGE_Y+BADGE_HEIGHT+4);
+	}
+	else
+	{
+		tft.drawString("F", SCREEN_W-12, BADGE_Y+BADGE_HEIGHT+4);
+	}
 }
 
 /*
@@ -1895,14 +1894,14 @@ void showInitScrn1()
     tft.setTextColor(COLOR_TEXT, COLOR_BG);
     tft.drawString("   A/C Pairing", SCREEN_W / 2, L.numberAreaY);
     tft.drawString("Set your remote to", SCREEN_W / 2, L.numberAreaY + tft.fontHeight());
-    if (ac.isCelsius())
-    {
-        tft.drawString("Cooling mode, 25'C", SCREEN_W / 2, L.numberAreaY + tft.fontHeight() * 3);
-    }
-    else
-    {
-        tft.drawString("Cooling mode, 78'F", SCREEN_W / 2, L.numberAreaY + tft.fontHeight() * 3);
-    }
+	if (ac.isCelsius())
+	{
+    	tft.drawString("Cooling mode, 25'C", SCREEN_W / 2, L.numberAreaY + tft.fontHeight() * 3);
+	}
+	else
+	{
+    	tft.drawString("Cooling mode, 78'F", SCREEN_W / 2, L.numberAreaY + tft.fontHeight() * 3);
+	}
     tft.drawString("Press OK when ready", SCREEN_W / 2, L.numberAreaY + tft.fontHeight() * 5);
 }
 

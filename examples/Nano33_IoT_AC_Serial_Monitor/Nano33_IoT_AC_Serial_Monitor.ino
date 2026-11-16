@@ -59,6 +59,7 @@ typedef struct
 {
     bc7215FormatPkt_t  format;
     bc7215DataMaxPkt_t data;
+	uint8_t			   status;
     bool               valid;
 	bool			   unit;
 } BC7215Store;
@@ -77,6 +78,7 @@ const bc7215DataVarPkt_t* dataPkt;
 const bc7215FormatPkt_t*  formatPkt;
 bc7215DataMaxPkt_t        irData;
 bc7215FormatPkt_t         irFormat;
+uint8_t					  irStatus;
 
 /*
  * Setup: Initialize serial communication and LED
@@ -292,7 +294,7 @@ void captureJob()
         {
             Serial.println("Now please aim at IR receiver and press <Fan Control> button on remote. \nWill "
                            "automatically proceed to next step after receiving signal...");
-            ac.startCapture();
+            ac.startCapture(1);
             startTime = millis();
             l2State = STEP3;
         }
@@ -301,20 +303,40 @@ void captureJob()
         if (ac.signalCaptured())
         {
             ac.stopCapture();
-            if (ac.init())        // Try to initialize
+            Serial.print("Received ");
+			Serial.print(ac.datPktCnt);
+			Serial.println(" packet(s): ");
+            for (int i = 0; i < ac.datPktCnt; i++)
             {
-                Serial.print("Received data: ");
-                dataPkt = ac.getDataPkt();
-                printData(dataPkt->data, (dataPkt->bitLen + 7) / 8);
-                Serial.println("AC control library initialization using received data  **SUCCESS** !!! ");
+                Serial.print("Pkt ");
+				Serial.print(i);
+				Serial.print(" : -- status=0x");
+				Serial.print(ac.sampleStatus[i], HEX);
+				Serial.print(", bitLen=");
+				Serial.print(ac.sampleData[i].bitLen);
+				Serial.print(",  ");
+                printData(&ac.sampleData[i].data, (ac.sampleData[i].bitLen + 7) / 8);
             }
-            else        // Initialization failed
-            {
-                Serial.println("AC control library initialization using received data **FAILED**, "
-                               "\npossibly due to incorrect remote state settings or receiving decode errors. Please "
-                               "check remote settings and try again");
-            }
-            l2State = STEP4;
+			Serial.println("");
+			if (ac.fmtPktCnt != 0)
+			{
+            	if (ac.init())        // Try to initialize
+            	{
+            	    Serial.println("AC control library initialization using received data  **SUCCESS** !!! ");
+            	}
+            	else        // Initialization failed
+            	{
+            	    Serial.println("AC control library initialization using received data **FAILED**, "
+            	                   "\npossibly due to incorrect remote state settings or receiving decode errors. Please "
+            	                   "check remote settings and try again");
+            	}
+            	l2State = STEP4;
+			}
+			else
+			{
+				Serial.println("BC7215 was not in Complex Mode, now restart capture and try again.");
+				ac.startCapture(1);
+			}
         }
         break;
     case STEP4:        // Sampling completion prompt
@@ -481,13 +503,14 @@ void backupJob()
     switch (l2State)
     {
     case STEP1:
-        irFormat = *ac.getFormatPkt();
-    	irData.bitLen = ac.getDataPkt()->bitLen;
-		memcpy(irData.data, ac.getDataPkt()->data, (irData.bitLen+7)/8);
+        formatPkt = ac.getFormatPkt();
+        dataPkt = ac.getDataPkt();
+		irStatus = ac.statusByte();
 
         BC7215Store config;
-        config.format = irFormat;
-        config.data = irData;
+        config.format = *formatPkt;
+        config.data = *((bc7215DataMaxPkt_t*)dataPkt);
+		config.status = irStatus;
         config.valid = true;
 		config.unit = ac.isCelsius();
         storage.write(config);        // Save structure to Flash
@@ -496,6 +519,16 @@ void backupJob()
         printData(formatPkt, sizeof(bc7215FormatPkt_t));
         Serial.print("Data: ");
         printData(dataPkt->data, (dataPkt->bitLen + 7) / 8);
+		Serial.print("Status: 0x");
+		Serial.println(irStatus, HEX);
+		if (ac.isCelsius())
+		{
+			Serial.println("Unit: Celsius");
+		}
+		else
+		{
+			Serial.println("Unit: Fahrenheit");
+		}
         Serial.println("Information saved to Flash memory");
         l2State = STEP2;
         break;
@@ -524,6 +557,7 @@ void restoreJob()
         config = storage.read();        // Read structure from Flash
         irFormat = config.format;
         irData = config.data;
+		irStatus = config.status;
 
         if (config.valid)
         {
@@ -532,16 +566,20 @@ void restoreJob()
             printData(&irFormat, sizeof(bc7215FormatPkt_t));
             Serial.print("Data: ");
             printData(&irData.data, (irData.bitLen + 7) / 8);
+			Serial.print("Status: 0x");
+			Serial.println(irStatus, HEX);
 			if (config.unit)
 			{
+				Serial.println("Unit: Celsius");
 				ac.setCelsius();
 			}
 			else
 			{
+				Serial.println("Unit: Fahrenheit");
 				ac.setFahrenheit();
 			}
 
-            if (ac.init(irData, irFormat))
+            if (ac.init(irStatus, irData, irFormat))
             {
                 Serial.println("AC control library initialization  ***SUCCESS*** !");
                 ledOn();
@@ -671,7 +709,7 @@ void irParsingJob()
             Serial.println(
                 "\n\nReceiving IR signal and parse(decode) Temperature, Mode, Fan Speed, and Power status from it.");
             Serial.println("\nBC7215A is now in RX mode, ready to decode. Enter anything on keyboard to exit");
-            ac.startCapture();
+            ac.startCapture(0);
             clearSerialBuf();
             startTime = millis();
             l2State = STEP2;
@@ -717,7 +755,7 @@ void irParsingJob()
             {
                 Serial.println("Parsing failed");
             }
-            ac.startCapture();
+            ac.startCapture(0);
         }
         if (Serial.available())
         {

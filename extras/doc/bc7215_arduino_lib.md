@@ -2,42 +2,13 @@
 
 ## Introduction
 
-This driver library provides an interface between the Arduino system and the BC7215 universal infrared codec chip, enabling various operations targeting the BC7215 chip. To use this driver library, a basic understanding of the BC7215 chip is required; please refer to the BC7215 datasheet for more information. 
+This library is a C++ wrapper of the BC7215 driver library in C which is adapted for the Arduino environment. To use this driver library, a basic understanding of the BC7215 chip is required: The BC7215 chip is a universal IR remote codec which can  encode/decode IR signal in arbitrary format. It can output/input the carried original data directly with the option of a 33 byte format packet that contains the modulation information. Refer to the BC7215 datasheet for more information. 
 
-This driver library can operate on any Arduino board that offers a hardware serial port, as well as on Arduino boards using a software serial port, but the software serial port must be set to a baud rate of 19200, 8 data bits, and **2 stop bits**.
+This library can operate on any Arduino board with a serial port, either hardware or software serial, the port must be set to a baud rate of 19200, 8 data bits, and **2 stop bits**.
 
 ## Installation
 
-In the Arduino IDE, select *"Sketch --> Include Library --> Add .ZIP Library"*, and choose the *bc7215.zip* package file to complete the installation. After installation, you can see the example programs provided with the library under *File --> Examples* in the IDE.
-
-## Data Types
-
-The driver library defines the data types:
-
-```cpp
-struct bc7215DataMaxPkt_t{
-    word bitLen;
-    byte data[BC7215_MAX_DATA_BYTE_LENGTH];
-};
-```
-
-This type defines the maximum data packet that can be processed, and the maximum data packet length that can be handled is defined in the **library configuration file** (see the "[Advanced Applications](#advanced-applications)" section.)
-
-```cpp
-struct bc7215FormatPkt_t{
-    union {
-        struct {
-            byte sig  : 6;
-            byte c56k : 1;
-            byte noCA : 1;
-        } bits;
-        byte inByte;
-    } signature;
-    byte format[32];
-};
-```
-
-This type defines the format information packet of the BC7215.
+This library comes as part of the BC7215AC AC control library, does not need to be installed separately.
 
 ## Usage
 
@@ -57,7 +28,7 @@ BC7215 irModule(Serial1, 6, 7);
 
 This line of code creates an instance of BC7215 named *irModule*. In the parameters, *Serial1* refers to the Serial port connected to the BC7215, "6" is the I/O pin connected to MOD, and "7" is the I/O pin connected to the BUSY signal.
 
-The MOD and BUSY signals do not have to be connected to the Arduino in every applications. In some cases, you might only use the BC7215 for either receiving or transmitting, in which case the MOD signal can be directly connected to either VCC or GND. Similarly, if you are not using the infrared transmission function, the BUSY signal can be left unconnected. 
+The MOD and BUSY signals do not have to be connected to the Arduino in every applications. In some cases, you might only use the BC7215 for either receiving or transmitting, in which case the MOD signal can be directly connected to either VCC or GND. Similarly, if you are not using the IR transmitting function, the BUSY signal can be left unconnected. 
 
 For these situations, when creating an instance of BC7215, special parameters represent these specific hardware connections:
 
@@ -170,7 +141,7 @@ Queries whether BC7215 chip is in a busy state. A return value of 1 (true) indic
 ### 3. Reception-related Functions
 
 ```cpp
-word getLen();
+uint16_t getLen();
 ```
 
 Gets the length of the received raw data packet in bits, which is,  the `bitLen` in `bc7215DataMaxPkt_t`. 
@@ -180,7 +151,7 @@ The actual length of data copied by the `getData()` function corresponds to the 
 If the raw data packet is unavailable, the result will be 0. This function allows users to check the length of data before retrieving raw data to prevent memory overflow or to dynamically allocate memory. If the reception function is disabled in the library configuration, this function is not available.
 
 ```cpp
-word dpktSize();
+uint16_t dpktSize();
 ```
 
 Gets the size of the received data packet in bytes. 
@@ -188,7 +159,7 @@ Gets the size of the received data packet in bytes.
 This function is equivalent to the one that gets the bit length but returns the size of the entire data packet in bytes, saving users the efforts of conversion. Since the data packet length is determined by the infrared transmitter, it's possible to receive data exceeding expectations. Users can check the size of the data packet before retrieval to prevent memory overflow. If the reception function is disabled in the library configuration, this function is not available.
 
 ```cpp
-byte getData(bc7215DataMaxPkt_t& target);
+uint8_t getData(bc7215DataMaxPkt_t& target);
 ```
 
 Function for reading the data packet. 
@@ -200,7 +171,7 @@ If the data in the cache is no longer available (e.g., it has been overwritten b
 This function clears the `dataReady()` status. Users must ensure that the target size can accommodate the received data; executing this function with insufficient memory space for the data can lead to memory overflow and unpredictable consequences. Users should first use `getLen()` or `dpktSize()` to get the data length, allocate memory or check space size, then call this function. If the reception function is disabled in the library configuration, this function is not available.
 
 ```cpp
-word getRaw(void* addr, word size);
+uint16_t getRaw(void* addr, uint16_t size);
 ```
 
 Function for retrieving the raw data from the received data packet. 
@@ -208,7 +179,7 @@ Function for retrieving the raw data from the received data packet.
 Similar to the above data packet reading function, but this function only reads out the raw payload data without the bit length information and can output to any address, making it more suitable for use in infrared communication. `size` is the number of bytes to read, which may not necessarily match the amount of data received; it can be less than or more than the actual number of bytes received. If `size` is less, it returns data up to the value of `size`; if `size` is more, it only reads out the actual number of bytes received. The return value is the actual number of bytes read. If the reception function is disabled in the library configuration, this function is not available.
 
 ```cpp
-byte getFormat(bc7215FormatPkt_t& target);
+uint8_t getFormat(bc7215FormatPkt_t& target);
 ```
 
 Function for reading the format data packet. 
@@ -234,7 +205,7 @@ Transmits infrared data. Calling this function will cause the BC7215 to transmit
 The format used for transmission is the last loaded format. If switching from receive to transmit mode without having loaded a format, the format of the last received infrared signal will be used. If the data to be transmitted is less than 16 bytes (128 bits), this function will return immediately after writing the data to the BC7215's internal buffer; if more than 16 bytes, it returns after the last 16 bytes are written to the buffer. The specific time required for infrared transmission depends on the infrared modulation format used, typically several ms per byte. The `cmdCompleted()` function can be used to query whether the infrared transmission is complete. If the transmission function is disabled in the configuration, this function is not available.
 
 ```cpp
-void sendRaw(const void* source, word size);
+void sendRaw(const void* source, uint16_t size);
 ```
 
 Sends raw data. 
@@ -270,7 +241,7 @@ void BC7215::clrNOCA(bc7215FormatPkt_t& target);
 Clears the control bit of the format data packet feature byte. After setting, the NOCA bit will be cleared (reset to default state), and after loading the data packet, BC7215 will use a 38k or 56k carrier for output.
 
 ```cpp
-byte BC7215::crc8(byte* data, word len);
+uint8_t BC7215::crc8(byte* data, uint16_t len);
 ```
 
 CRC8 calculation function. 
@@ -282,7 +253,7 @@ The function has two input parameters: a pointer to the data and the length of t
 The CRC calculation polynomial, default value is 0x07, defined in `bc7215_config.h`, can be modified by users as needed.
 
 ```cpp
-word BC7215::calSize(const bc7215DataMaxPkt_t& dataPkt);
+uint16_t BC7215::calSize(const bc7215DataMaxPkt_t& dataPkt);
 ```
 
 Calculates the size of a data packet. 
@@ -298,7 +269,7 @@ Data packet copy function.
 This function copies the data packet from `source` to the address of `target`. The copy operation only copies the size of the actual data packet in `source`. It is worth noting that this function supports the overlap of `source` and `target`, which effectively moves the data packet, for example, `target`'s address can be just 1 byte different from `source`, equivalent to moving the data packet forward or backward by one byte in memory.
 
 ```cpp
-bool compareDpkt(byte sig, const bc7215DataMaxPkt_t& pkt1, const bc7215DataMaxPkt_t& pkt2);
+bool compareDpkt(uint8_t sig, const bc7215DataMaxPkt_t& pkt1, const bc7215DataMaxPkt_t& pkt2);
 ```
 
 Compares two data packets. This function compares whether the valid data in two packets are the same. If the same, the function returns `1` (true); if different, returns `0` (false). 
@@ -307,7 +278,7 @@ Infrared data may not end in a complete byte, and this function supports the com
 
 ## Advanced Usage
 
- The driver library includes a configuration file 'bc7215_config.h' . It defines some parameters related to this driver library. Advanced users can adjust these values according to their needs to better suit their projects. The main configuration parameters are as follows:
+The base C driver library uses a configuration file `bc7215_lib_config.h` , it's located in src/bc7215_ac_lib/. It defines some parameters related to this driver library. Advanced users can adjust these values according to their needs to better suit their projects. The main configuration parameters are as follows:
 
 `ENABLE_RECEIVING` 
 

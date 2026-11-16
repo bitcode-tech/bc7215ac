@@ -64,13 +64,14 @@ const bc7215DataVarPkt_t* dataPkt;
 const bc7215FormatPkt_t*  formatPkt;
 bc7215DataMaxPkt_t        irData;
 bc7215FormatPkt_t         irFormat;
+uint8_t					  irStatus;
 
 /*
  * Setup: Initialize EEPROM, serial communication and LED
  */
 void setup()
 {
-    EEPROM.begin(sizeof(bc7215FormatPkt_t) + sizeof(bc7215DataMaxPkt_t) + sizeof(bool));  // init EEPROM
+    EEPROM.begin(sizeof(bc7215FormatPkt_t) + sizeof(bc7215DataMaxPkt_t) + sizeof(uint8_t) + sizeof(bool));  // init EEPROM
     Serial.begin(115200);                                 // Debug serial
     bc7215Serial.begin(19200, SERIAL_8N2, 25, 33);        // BC7215 serial, RX=GPIO25, TX=GPIO33
     mainState = CHOOSE_UNIT;
@@ -278,7 +279,7 @@ void captureJob()
         {
             Serial.println("Now please aim at IR receiver and press <Fan Control> button on remote. \nWill "
                            "automatically proceed to next step after receiving signal...");
-            ac.startCapture();
+            ac.startCapture(1);
             l2State = STEP3;
         }
         break;
@@ -286,24 +287,44 @@ void captureJob()
         if (ac.signalCaptured())
         {
             ac.stopCapture();
-            if (ac.init())        // Try to initialize
+            Serial.print("Received ");
+			Serial.print(ac.datPktCnt);
+			Serial.println(" packet(s): ");
+            for (int i = 0; i < ac.datPktCnt; i++)
             {
-                Serial.print("Received data: ");
-                dataPkt = ac.getDataPkt();
-                printData(dataPkt->data, (dataPkt->bitLen + 7) / 8);
-                Serial.println("AC control library initialization using received data  **SUCCESS** !!! ");
+                Serial.print("Pkt ");
+				Serial.print(i);
+				Serial.print(" : -- status=0x");
+				Serial.print(ac.sampleStatus[i], HEX);
+				Serial.print(", bitLen=");
+				Serial.print(ac.sampleData[i].bitLen);
+				Serial.print(",  ");
+                printData(&ac.sampleData[i].data, (ac.sampleData[i].bitLen + 7) / 8);
             }
-            else        // Initialization failed
-            {
-                Serial.println("AC control library initialization using received data **FAILED**, "
-                               "\npossibly due to incorrect remote state settings or receiving decode errors. Please "
-                               "check remote settings and try again");
-            }
-            l2State = STEP4;
+			Serial.println("");
+			if (ac.fmtPktCnt != 0)
+			{
+            	if (ac.init())        // Try to initialize
+            	{
+            	    Serial.println("AC control library initialization using received data  **SUCCESS** !!! ");
+            	}
+            	else        // Initialization failed
+            	{
+            	    Serial.println("AC control library initialization using received data **FAILED**, "
+            	                   "\npossibly due to incorrect remote state settings or receiving decode errors. Please "
+            	                   "check remote settings and try again");
+            	}
+            	l2State = STEP4;
+			}
+			else
+			{
+				Serial.println("BC7215 was not in Complex Mode, now restart capture and try again.");
+				ac.startCapture(1);
+			}
         }
         break;
     case STEP4:        // Sampling completion prompt
-        Serial.println("Now please enter any content, program will return to main menu and AC control can begin...");
+        Serial.println("Now please enter any content, program will return to main menu");
         clearSerialBuf();
         l2State = STEP5;
         break;
@@ -473,14 +494,26 @@ void backupJob()
         {
             formatPkt = ac.getFormatPkt();
             dataPkt = ac.getDataPkt();
+			irStatus = ac.statusByte();
             EEPROM.put(0, *formatPkt);                              // save data to EEPROM
             EEPROM.put(sizeof(bc7215FormatPkt_t), *((bc7215DataMaxPkt_t*)dataPkt));        // save format to EEPROM
-			EEPROM.put(sizeof(bc7215FormatPkt_t)+sizeof(bc7215DataMaxPkt_t), isCelsius);	// save unit to EEPROM
+			EEPROM.put(sizeof(bc7215FormatPkt_t)+sizeof(bc7215DataMaxPkt_t), irStatus);		// save status to EEPROM
+			EEPROM.put(sizeof(bc7215FormatPkt_t)+sizeof(bc7215DataMaxPkt_t)+sizeof(uint8_t), isCelsius);	// save unit to EEPROM
             EEPROM.commit();
             Serial.println("\nFormat info: ");
             printData(formatPkt, sizeof(bc7215FormatPkt_t));
             Serial.print("Data: ");
             printData(dataPkt->data, (dataPkt->bitLen + 7) / 8);
+			Serial.print("Status: 0x");
+			Serial.println(irStatus, HEX);
+			if (isCelsius)
+			{
+				Serial.println("Unit: Celsius");
+			}
+			else
+			{
+				Serial.println("Unit: Fahrenheit");
+			}
             Serial.println("Information saved to Flash memory");
         }
         else
@@ -514,22 +547,27 @@ void restoreJob()
     case STEP1:
         EEPROM.get(0, irFormat);        // Load format from EEPROM
         EEPROM.get(sizeof(bc7215FormatPkt_t), irData);          // Load data from EEPROM
-		EEPROM.get(sizeof(bc7215FormatPkt_t)+sizeof(bc7215DataMaxPkt_t), isCelsius);	// Load unit from EEPROM
+		EEPROM.get(sizeof(bc7215FormatPkt_t)+sizeof(bc7215DataMaxPkt_t), irStatus);
+		EEPROM.get(sizeof(bc7215FormatPkt_t)+sizeof(bc7215DataMaxPkt_t)+sizeof(uint8_t), isCelsius);	// Load unit from EEPROM
         Serial.println("\nUsing saved configuration from Flash");
         Serial.print("Format info: ");
         printData(&irFormat, sizeof(bc7215FormatPkt_t));
         Serial.print("Data: ");
         printData(&irData.data, (irData.bitLen + 7) / 8);
+		Serial.print("Status: 0x");
+		Serial.println(irStatus, HEX);
 		if (isCelsius)
 		{
+			Serial.println("Unit: Celsius");
 			ac.setCelsius();
 		}
 		else
 		{
+			Serial.println("Unit: Fahrenheit");
 			ac.setFahrenheit();
 		}
 
-        if (ac.init(irData, irFormat))
+        if (ac.init(irStatus, irData, irFormat))
         {
             Serial.println("AC control library initialization  ***SUCCESS*** !");
         }
@@ -649,7 +687,7 @@ void irParsingJob()
             Serial.println(
                 "\n\nReceiving IR signal and parse(decode) Temperature, Mode, Fan Speed, and Power status from it.");
             Serial.println("\nBC7215A is now in RX mode, ready to decode. Enter anything on keyboard to exit");
-            ac.startCapture();
+            ac.startCapture(0);
             clearSerialBuf();
             l2State = STEP2;
         }
@@ -694,7 +732,7 @@ void irParsingJob()
             {
                 Serial.println("Parsing failed");
             }
-            ac.startCapture();
+            ac.startCapture(0);
         }
         if (Serial.available())
         {

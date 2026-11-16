@@ -2,66 +2,102 @@
 
 [[简体中文](./extras/doc/README_CN.md)]
 
-There's also a C version of this library for generic micro-controllers: [https://github.com/bitcode-tech/bc7215_ac_lib](https://github.com/bitcode-tech/bc7215_ac_lib)
-
 ****2 major functionalities of this library:****
 
 * ##### Sending IR to control Temp, Mode, Fan & Power of an A/C
 
-* ##### Receiving IR to decode these information from the signal
+* ##### Receiving to extract these information from the IR
 
-This library uses BC7215A chip as it's core functioning component and can let your Arduino control almost any air conditioner available on the market
+This repository contains **2 libraries**: A **low level driver library** and a dedicated **AC control library.** The low level driver library can be run on any Arduino including UNO, with the driver library itself it's already powerful enough to decode and duplicate any IR remote, or use 2 devices to setup your own IR communication system. a few example codes are provided.
 
-![](./extras/img/supported_list_en.png) 
+With the AC library, any AC can be controlled and decoded offline, but it needs more resources, usually ESP32 or ESP8266 will be used. Examples for ESP32, ESP8266 and Nano33 are provided in the package.
 
-[Supported brands list](./extras/doc/Supported_ac_brand_list-en.pdf)
+![](extras/img/IR-decoder.png)
 
-It runs locally with a small footprint, no online database is needed! The library leverages the BC7215A's ability to decode/transmit IR signal in arbitrary format, and can recognise and pair with any air conditioner with one click. 
+*A screenshot of low level driver library example -- universal IR decoder*
 
-**Relative Documents:**
+![](extras/img/system_en.jpg)
 
-[BC7215A datasheets](./extras/doc/bc7215_en.pdf)
+*An ESP32 MQTT AC controller example with LCD*
 
-[Schematic of the BC7215A IR transceiver board](./extras/doc/bc7215_arduino_board.pdf) 
+# Installation
 
-![Demo application with ESP32](./extras/img/system_en.jpg)
+There are 2 ways to install:
 
-This is the Arduino encapsulation of the same library's C version, making it work seamlessly with Arduino through simple function calls. The library supports key air conditioner operations: temperature adjustment, mode selection, fan speed control, and power on/off. It also supports parsing of the IR signal, read these settings form IR.
+- **In Arduino IDE library manager, search "BC7215"**
 
-2 manuals are provided:
+- **Download this repository and install as a zip file.**
 
-* [A/C Control Library User's Manual](./extras/doc/BC7215AC_arduino_ac_lib.pdf)
+# Documentation
 
-* [User's Manual for built-in examples](./extras/doc/AC_control_examples.md)
+Detailed information including datasheets and user manuals are placed in the extras/doc folder, 
 
-Though the library user's manual (pdf) available in the document directory provides more details, the best way to learn about this library is to follow the examples. There are 5 examples provided with the library, and each one has both English and Chinese versions:
+![](extras/img/documents.png)
 
-- **ESP8266 Serial Monitor Version**
-- ****ESP32 Serial Monitor Version****
-- ****Arduino Nano 33 IoT Serial Monitor Version****
-- ****ESP32 LCD Version****
-- ****ESP32 MQTT online IoT Version****
-- **ESP32 Home Assistant Example**
-- **ESP8266 Home Assistant Example**
+Here is a tree of the repository contents:
 
-It's recommended to start with the serial monitor examples to get familiar with the library functions, then progress to LCD and MQTT versions for more advanced integrations.
+```text
+root/
+├─ README.md                            <- This file
+├─ src/                                 <- Source code
+│  ├─ bc7215_ac_lib/                    <- base BC7215 lib & AC lib in C
+│  ├─ bc7215.h                          <- BC7215 low level driver header
+│  ├─ bc7215.cpp                        <- Low-level driver cpp wrapper
+│  ├─ bc7215ac.h                        <- AC library header
+│  └─ bc7215ac.cpp                      <- AC library cpp wrapper
+├─ extras/
+│  ├─ img/                              <- images for documents
+│  ├─ config/                           <- TFT lib settings for examples
+│  └─ doc/                              <- Documents
+│     ├─ AC_control_examples.md         <- AC control examples manual
+│     ├─ AC_control_examples.pdf        <- AC control examples manual
+│     ├─ ac_lib_issue_feedback.pdf      <- Issue report form
+│     ├─ bc7215_en.pdf                  <- BC7215 datasheets
+│     ├─ BC7215AC_arduino_ac_lib.pdf    <- AC control library manual
+│     ├─ bc7215_arduino_board.pdf       <- BC7215 Arduino board schematic
+│     ├─ bc7215_arduino_examples_en.pdf <- Low-level lib examples manual
+│     ├─ bc7215_arduino_lib_en.pdf      <- Low-level lib user manual
+│     ├─ programming_flowchart_en.pdf   <- Programming flowchart
+│     └─ Supported_ac_brand_list-en.pdf <- Supported AC brand list
+└─ examples/
+   ├─ ESP32_AC_LCD/                     <- ESP32 AC Control with LCD
+   ├─ ESP32_AC_LCD_CN/                  <- ESP32 with LCD CN version
+   ├─ ESP32_AC_MQTT/                    <- ESP32 AC Control with MQTT
+   ├─ ESP32_AC_MQTT_CN/                 <- ESP32 with MQTT CN version
+   ├─ ESP32_AC_MQTT_HA/                 <- ESP32 MQTT for Home Assistant
+   ├─ ESP32_AC_Serial_Monitor/          <- ESP32 AC ctrl w Serial Monitor
+   ├─ ESP32_AC_Serial_Monitor_CN/       <- ESP32 Serial Monitor CN version
+   ├─ ESP8266_AC_MQTT_HA/               <- ESP8266 MQTT for Home Assistant
+   ├─ ESP8266_AC_nonblocking/           <- ESP8266 AC with Serial Monitor
+   ├─ ESP8266_AC_nonblocking_CN/        <- ESP8266 AC CN version
+   ├─ Nano33_IoT_AC_Serial_Monitor/     <- Nano33 IoT AC control
+   ├─ ir_decoder/                       <- Low-level: Universal IR decoder
+   ├─ ir_switch/                        <- Low-level: IR controled switch
+   ├─ prog_remote/                      <- Low-level: programmable remote
+   └─ comm/                             <- Low-level: 2-way IR communicate
 
-"**ESP8266 Serial Monitor Version**" Using software serial for communication with the BC7215A and the Arduino IDE serial monitor for user interaction. It demonstrates all the features of this library. 
+```
 
-"**ESP32 Serial Monitor Version**" is port of the ESP8266 example, adapted for ESP32 hardware.
+## Links to the documents:
 
-**"Arduino Nano 33 Iot Serial Monitor Version"** is a port to the popular official board with ATMEL SAMD processor.
+[BC7215(A) datasheets](./extras/doc/bc7215_en.pdf)
 
-"**ESP32 LCD Version**" utilize the LILYGO T-Display's onboard buttons and LCD for a user-friendly interface, demonstrating control without relying on a computer.
+[Supported AC brands list](./extras/doc/Supported_ac_brand_list-en.pdf)
 
-"**ESP32 MQTT IoT Version**" extend the LCD version with networking capabilities, allowing MQTT-based remote control and status reporting for IoT applications.
+[A/C Control Library User's Manual](./extras/doc/BC7215AC_arduino_ac_lib.pdf)
 
-"**ESP32/8266 Home Assistant Example**" Can promote itself to Home Assistant and get Integrated automatically, then you can control the AC in HA immediately.
+[User's Manual for AC control examples](./extras/doc/AC_control_examples.md)
 
-Please see [**A/C Control Examples**](./extras/doc/AC_control_examples.md) (markdown) for detailed information about the examples. Or the [**PDF version**](./extras/doc/AC_control_examples.pdf) if you prefer.
+[Low-level driver library User's Manual](./extras/doc/bc7215_arduino_lib_en.pdf)
+
+[User's Manual for low-level library examples](./extras/doc/bc7215_arduino_examples_en.pdf)
+
+[Programming Flowchart](./extras/doc/programming_flowchart_en.pdf)
+
+[BC7215 Arduino Board Schematic](./extras/doc/bc7215_arduino_board.pdf)
 
 ## Other Documents:
 
-This A/C remote control library comes with the BC7215 chip driver library as a low level driver,  Here are the relative documents:
+A front page for the low-level driver library:
 
 [**BC7215 CHIP DRIVER LIBRARY README FILE**](./extras/doc/README_BC7215_DRIVER.md)

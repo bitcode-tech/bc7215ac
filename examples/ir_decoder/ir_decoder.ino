@@ -28,12 +28,15 @@
 #define USE_SERIAL_MONITOR        // Code will print running status to serial monitor
 
 const int LED = 13;		// LED is connected to digital I/O 13
+//const int BUSY = 2;	// Reserved for future use
+//const int MOD = 3;
 
 // In this application, MOD is connected to VCC permanently, and BUSY is not connected
 // so the connection parameter uses constant BC7215::MOD_HIGH and BC7215::BUSY_NC
 BC7215 irModule(IR_SERIAL, BC7215::MOD_HIGH, BC7215::BUSY_NC);        // define BC7215 connection
 
 bc7215DataMaxPkt_t rcvdData;        // This is the variable for received IR data
+char	buffer[4];
 
 word len;
 word counter;
@@ -50,34 +53,35 @@ void setup()
 
     pinMode(LED, OUTPUT);
     ledOff();
+//	pinMode(BUSY, INPUT);		// Reserved for future use
+//	pinMode(MOD, OUTPUT);
+//	digitalWrite(MOD, HIGH);
 }
 
 void loop()
 {
     if (irModule.dataReady())        // if IR data received by BC7215
     {
-        len = irModule.dpketSize();
-        if (len <= sizeof(rcvdData))        // if data size is not larger than container
-        {
             counter++;
             ledOn();
             irModule.getData(rcvdData);        // get data
+			len = (rcvdData.bitLen+7)/8;
 #if defined(USE_SERIAL_MONITOR)		// if Serial is used for serial monitor, print information
-            Serial.print("Counter: ");
+            Serial.print("Pkt Counter: ");
             Serial.print(counter);
-            Serial.print("  Data lenght: ");
+            Serial.print(",  Bit lenght: ");
             Serial.print(rcvdData.bitLen);
             Serial.print(" bits, (");
-            Serial.print(len - 2);
+            Serial.print(len);
             Serial.println(" bytes):");
-            for (int i = 0; i < len - 2; i++)        // payload data length is the whole packet size -2
+            for (int i = 0; i < len; i++)        // payload data length is the whole packet size -2
             {
-                Serial.print(rcvdData.data[i], HEX);
-                Serial.print(' ');
+                sprintf(buffer, "%02X ", rcvdData.data[i]);
+                Serial.print(buffer);
             }
             Serial.println("");
+            Serial.println("");
 #endif
-        }
     }
     delay(50);
     ledOff();

@@ -51,7 +51,7 @@
 // ======= WiFi / MQTT / Home Assistant configuration =======
 //#define MY_WIFI_SSID     "******"                   // Replace with your WiFi SSID
 //#define MY_WIFI_PASSWORD "*************"            // Replace with your WiFi password
-//#define MY_MQTT_IP_ADDR  "***.***.***.***"		  // Replace with your MQTT	broker IP address
+//#define MY_MQTT_IP_ADDR  "*************"	        // Replace with your MQTT broker IP address
 #define MY_UUID          "bc7215_ac_01"             // Unique device id
 #define HA_BASE          "home/ac/bc7215"
 
@@ -183,6 +183,7 @@ struct SavedConfig
     uint32_t            magic;
     bool                isCelsius;
     int8_t              matchCnt;
+    uint8_t             irStatus;
     bc7215FormatPkt_t   irFormat;
     bc7215DataMaxPkt_t  irData;
 };
@@ -228,6 +229,8 @@ bool          longPressHandled = false;
 // Scratch buffers for loading AC data from EEPROM
 bc7215DataMaxPkt_t  irData;
 bc7215FormatPkt_t   irFormat;
+uint8_t			    irStatus;
+
 
 const int interval = 10;      // main loop tick in ms
 
@@ -273,7 +276,7 @@ void setup()
     // Initial state
     mainState = START;
     l2State   = STEP1;
-
+	
 	ac.setCelsius();
 	// ac.setFahrenheit();		// use this line instead if your AC is Fahrenheit.
 }
@@ -348,7 +351,7 @@ void powerup()
 
     case STEP3:
         // Try to restore a previously learned remote
-        if (loadInitInfo() && ac.init(irData, irFormat))
+        if (loadInitInfo() && ac.init(irStatus, irData, irFormat))
         {
             // Navigate to the stored match index (if > 0)
             if (matchCnt > 0)
@@ -360,7 +363,7 @@ void powerup()
                 }
                 if (!result)
                 {
-                    ac.init(irData, irFormat);
+                    ac.init(irStatus, irData, irFormat);
                     matchCnt = 0;
                 }
             }
@@ -401,35 +404,57 @@ void doPairing()
     if (ac.signalCaptured())
     {
         ac.stopCapture();
-
-        if (ac.init())
+        Serial.print("Received ");
+        Serial.print(ac.datPktCnt);
+        Serial.println(" packet(s): ");
+        for (int i = 0; i < ac.datPktCnt; i++)
         {
-            Serial.println(F("[PAIR] Pairing OK"));
-            matchCnt = 0;
-            saveInitInfo();
-
-            // Reset default setpoints after pairing
-            temp = ac.isCelsius() ? 25 : 78;
-            mode = 1;
-            fan  = 1;
-
-            // Flash LED "OFF" clearly so user sees the transition
-            LED_OFF();
-
-            // Re-announce to Home Assistant (in case it was down at boot)
-            if (mqttState == CONNECTED)
+            Serial.print("Pkt ");
+            Serial.print(i);
+            Serial.print(" : -- status=0x");
+            Serial.print(ac.sampleStatus[i], HEX);
+            Serial.print(", bitLen=");
+            Serial.print(ac.sampleData[i].bitLen);
+            Serial.print(",  ");
+            printData(&ac.sampleData[i].data, (ac.sampleData[i].bitLen + 7) / 8);
+        }
+        Serial.println("");
+        if (ac.fmtPktCnt != 0)
+        {
+            if (ac.init())
             {
-				mqttOnlineAction();
-                acStatPublish();
-            }
+                Serial.println(F("[PAIR] Pairing OK"));
+                matchCnt = 0;
+                saveInitInfo();
 
-            enterWorking();
+                // Reset default setpoints after pairing
+                temp = ac.isCelsius() ? 25 : 78;
+                mode = 1;
+                fan  = 1;
+
+                // Flash LED "OFF" clearly so user sees the transition
+                LED_OFF();
+
+                // Re-announce to Home Assistant (in case it was down at boot)
+                if (mqttState == CONNECTED)
+                {
+                    mqttOnlineAction();
+                    acStatPublish();
+                }
+
+                enterWorking();
+            }
+            else
+            {
+                // Pairing failed -> stay in PAIRING and listen again
+                Serial.println(F("[PAIR] Pairing failed, restarting capture"));
+                ac.startCapture(1);
+            }
         }
         else
         {
-            // Pairing failed -> stay in PAIRING and listen again
-            Serial.println(F("[PAIR] Pairing failed, restarting capture"));
-            ac.startCapture();
+            Serial.println("BC7215 was not in Complex Mode, now restart capture and try again.");
+            ac.startCapture(1);
         }
     }
 }
@@ -503,7 +528,7 @@ void doWorking()
         }
 
         LED_OFF();
-        ac.startCapture();                   // resume listening
+        ac.startCapture(0);                   // resume listening
         heartbeatBaseTime = millis();        // resync heartbeat so it doesn't flash immediately
     }
 }
@@ -544,7 +569,7 @@ void doIrSending()
         if (mainState == WORKING)
         {
             // Re-enter parsing mode
-            ac.startCapture();
+            ac.startCapture(0);
             heartbeatBaseTime = millis();
         }
     }
@@ -571,7 +596,7 @@ void enterPairing()
     mainState    = PAIRING;
     ledBlinkTime = millis();
     LED_OFF();
-    ac.startCapture();
+    ac.startCapture(1);
 }
 
 void enterWorking()
@@ -579,7 +604,7 @@ void enterWorking()
     mainState         = WORKING;
     heartbeatBaseTime = millis();
     LED_OFF();
-    ac.startCapture();
+    ac.startCapture(0);
 }
 
 // =====================================================================
@@ -932,6 +957,7 @@ void saveInitInfo()
     SavedConfig cfg;
     cfg.magic     = EEPROM_MAGIC;
     cfg.isCelsius = ac.isCelsius();
+    cfg.irStatus = ac.statusByte();
     cfg.matchCnt  = matchCnt;
 
     const bc7215FormatPkt_t*  fp = ac.getFormatPkt();
@@ -964,6 +990,7 @@ bool loadInitInfo()
     memcpy(&irFormat, &cfg.irFormat, sizeof(bc7215FormatPkt_t));
     memcpy(&irData,   &cfg.irData,   sizeof(bc7215DataMaxPkt_t));
     matchCnt = cfg.matchCnt;
+    irStatus = cfg.irStatus;
 
     if (cfg.isCelsius) ac.setCelsius();
     else               ac.setFahrenheit();
@@ -971,3 +998,18 @@ bool loadInitInfo()
     Serial.println(F("[EE] Config loaded"));
     return true;
 }
+
+/*
+ * Print data in hexadecimal format
+ */
+void printData(const void* data, uint8_t len)
+{
+    for (int i = 0; i < len; i++)
+    {
+        Serial.print(*((uint8_t*)data + i), HEX);
+        Serial.print(' ');
+    }
+    Serial.println("");
+}
+
+

@@ -25,25 +25,15 @@
 *     V1.0 March 2024
 *     V2.0 July 2025
 *     V2.1 Jan 2026
+*     V4.3 Nov 2026
 *
 *  License:
-*     MIT License
+*     See license file.
 ******************************************************************************/
 
 #include <Arduino.h>
 #include <Stream.h>
-#include <bc7215_types.h>
-
-/**
- * Buffer size calculation: data packet size + format packet size
- * When format packets are enabled, buffer accommodates both data and format packets
- * Otherwise, only data packets are buffered
- */
-#if ENABLE_FORMAT == 1
-#	define BC7215_BUFFER_SIZE ((BC7215_MAX_RX_DATA_SIZE + 3) + (32 + 1))
-#else
-#	define BC7215_BUFFER_SIZE (BC7215_MAX_RX_DATA_SIZE + 3)
-#endif
+#include <bc7215_ac_lib/bc7215_lib.h>
 
 /**
  * BC7215 Class - Main interface for BC7215 IR encoder/decoder chip
@@ -134,6 +124,12 @@ public:
 	 */
 	bool isBusy();
 
+	/**
+	 * Check if there is received data in Serial RX buffer
+	 * Return if buffer is empty or data or format packet has been received
+	 */
+	void pollRx();
+
 #if ENABLE_RECEIVING == 1
 
 	// === Data Reception Functions ===
@@ -208,8 +204,8 @@ public:
 		 */
 		uint8_t getFormat(bc7215FormatPkt_t& target);
 
-#	endif
-#endif
+#	endif	// ENABLE_FORMAT
+#endif		// ENABLE_RECEIVING
 
 #if ENABLE_TRANSMITTING == 1
 
@@ -241,7 +237,7 @@ public:
 	 */
 	void sendRaw(const void* source, uint16_t size);
 
-#endif
+#endif		// ENABLE_TRANSMITTING
 
 	// === Status Functions ===
 	
@@ -308,14 +304,14 @@ public:
 	 * @param target Destination memory address
 	 * @param source Pointer to source variable data packet
 	 */
-	static void copyDpkt(void* target, bc7215DataVarPkt_t* source);
+	static void copyDpkt(void* target, const bc7215DataVarPkt_t* source);
 	
 	/**
 	 * Copy fixed maximum data packet to memory buffer
 	 * @param target Destination memory address
 	 * @param source Reference to source maximum data packet
 	 */
-	static void copyDpkt(void* target, bc7215DataMaxPkt_t& source);
+	static void copyDpkt(void* target, const bc7215DataMaxPkt_t& source);
 	
 	/**
 	 * Compare two variable data packets
@@ -337,113 +333,26 @@ public:
 
 private:
 	// === Private Member Variables ===
-	
+	static BC7215*	instance;
 	Stream&         uart;           ///< Reference to serial communication stream
 	int             modPin;         ///< Digital pin number for MOD signal control
 	int             busyPin;        ///< Digital pin number for BUSY signal monitoring
 	
-	/**
-	 * Status flags structure for tracking BC7215 state
-	 */
-	struct
-	{
-		uint8_t formatPktReady : 1;  ///< Format packet ready for reading
-		uint8_t dataPktReady : 1;    ///< Data packet ready for reading
-		uint8_t pktStarted : 1;      ///< Packet reception in progress
-		uint8_t overLap : 1;         ///< Buffer overlap condition detected
-		uint8_t cmdComplete : 1;     ///< Last command execution completed
-	} bc7215Status;
-
-#if ENABLE_RECEIVING == 1
-
-	uint8_t circularBuffer[BC7215_BUFFER_SIZE]; ///< Circular buffer for received data
-
-	// Buffer management variables (size depends on buffer size)
-#if BC7215_BUFFER_SIZE > 255
-	struct pktInfo_t
-	{
-		uint16_t  bitLen;
-		uint16_t  start;
-		uint16_t  end;
-		uint16_t  count;
-	} curPktInfo, prePktInfo;
-	uint16_t       startPos;        ///< Start position in circular buffer
-	uint16_t       lastWritingPos;  ///< Last write position in buffer
-	uint16_t       byteCount;       ///< Total bytes in buffer
-	
-	/**
-	 * Read byte from circular buffer (backward direction)
-	 * @param pos Position to read from
-	 * @param n Offset from position
-	 * @return Byte value at specified position
-	 */
-	uint8_t bufBackRead(uint16_t pos, uint16_t n);
-	
-	/**
-	 * Read byte from circular buffer (forward direction)
-	 * @param pos Position to read from
-	 * @param n Offset from position
-	 * @return Byte value at specified position
-	 */
-	uint8_t bufRead(uint16_t pos, uint16_t n);
-#else
-	struct pktInfo_t
-	{
-		uint16_t bitLen;
-		uint8_t  start;
-		uint8_t  end;
-		uint8_t  count;
-	} curPktInfo, prePktInfo;
-	uint8_t        startPos;        ///< Start position in circular buffer
-	uint8_t        lastWritingPos;  ///< Last write position in buffer
-	uint8_t        byteCount;       ///< Total bytes in buffer
-	
-	/**
-	 * Read byte from circular buffer (backward direction)
-	 * @param pos Position to read from
-	 * @param n Offset from position
-	 * @return Byte value at specified position
-	 */
-	uint8_t bufBackRead(uint8_t pos, uint8_t n);
-	
-	/**
-	 * Read byte from circular buffer (forward direction)
-	 * @param pos Position to read from
-	 * @param n Offset from position
-	 * @return Byte value at specified position
-	 */
-	uint8_t bufRead(uint8_t pos, uint8_t n);
-#endif
-
-#endif
 
 	// === Private Member Functions ===
-	
-	/**
-	 * Process incoming data byte from BC7215
-	 * Handles packet parsing and buffer management
-	 * @param data Received data byte
-	 */
-	void processData(uint8_t data);
-	
-	/**
-	 * Send byte with byte stuffing protocol
-	 * Implements escape sequences for special control bytes
-	 * @param data Byte to send with stuffing
-	 */
-	void byteStuffingSend(uint8_t data);
 	
 	/**
 	 * Send single byte to BC7215 via UART
 	 * @param data Byte to transmit
 	 */
-	void sendOneByte(uint8_t data);
+	static void sendOneByte(uint8_t data);
+	static void setModHigh();
+	static void setModLow();
+	static uint8_t readMod();
+	static uint8_t readBusy();
+
+	void driverLibConfig();
 	
-	/**
-	 * Update internal status flags based on current state
-	 * Maintains synchronization between hardware and software status
-	 */
-	void statusUpdate();
 };
 
-#endif
+#endif	// BC7215_H
